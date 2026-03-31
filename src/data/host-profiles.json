@@ -1,0 +1,25 @@
+{
+  "_comment": "宿主档案系统 — Phase 1只用default档案，Phase 2扩展体质差异",
+  "default": {
+    "id": "default", "name_key": "host.default.name", "description_key": "host.default.description",
+    "resource_modifiers": {}, "starting_deck": "default", "passive_effects": [], "lore_key": "host.default.lore"
+  },
+  "_phase2_reserved": {
+    "_note": "以下档案Phase 2启用，注册即可激活",
+    "athlete": {
+      "id": "athlete", "name_key": "host.athlete.name",
+      "resource_modifiers": { "atp": { "base_delta": 1, "max_delta": 2, "regen_delta": 1 }, "fatigue": { "max_delta": -5 } },
+      "passive_effects": [{ "type": "mitochondria_boost", "atp_bonus_per_turn": 1 }]
+    },
+    "smoker": {
+      "id": "smoker", "name_key": "host.smoker.name",
+      "resource_modifiers": { "oxidative_stress": { "base_delta": 5, "regen_delta": 1 }, "cell_integrity": { "max_delta": -20 } },
+      "passive_effects": [{ "type": "ifitm_weakened", "efficiency_multiplier": 0.7 }]
+    },
+    "elderly": {
+      "id": "elderly", "name_key": "host.elderly.name",
+      "resource_modifiers": { "atp": { "regen_delta": -1 }, "amino_acid": { "regen_delta": -1 } },
+      "passive_effects": [{ "type": "innate_immune_reduced", "effectiveness_multiplier": 0.8 }]
+    }
+  }
+}
