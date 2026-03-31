@@ -1,0 +1,216 @@
+{
+  "_comment": "病毒数据库 — Phase 1A，基于NCBI真实记录，含5种病毒完整数据",
+  "_version": "1.0.0",
+
+  "influenza_h1n1": {
+    "id": "influenza_h1n1", "display_key": "viruses.influenza_h1n1",
+    "category": "RNA_virus", "genome_type": "ssRNA_negative",
+    "replication_per_turn": 2, "initial_load": 3,
+    "ncbi": {
+      "reference_genome": "NC_002023",
+      "segments": {
+        "HA":  { "accession": "NC_002023", "gene": "HA",  "protein": "hemagglutinin", "length_bp": 1778 },
+        "NA":  { "accession": "NC_002022", "gene": "NA",  "protein": "neuraminidase", "length_bp": 1565 },
+        "PB1": { "accession": "NC_002021", "gene": "PB1", "protein": "RNA-dependent RNA polymerase PB1", "length_bp": 2341 },
+        "NS1": { "accession": "NC_002020", "gene": "NS1", "protein": "nonstructural protein 1", "length_bp": 890 }
+      }
+    },
+    "invasion_pathway": [
+      { "layer": 1, "step": "HA绑定细胞表面唾液酸受体（α-2,6键联，上呼吸道上皮细胞）" },
+      { "layer": 2, "step": "受体介导内吞，进入内体（early endosome）" },
+      { "layer": 2, "step": "内体酸化（pH 5.0-5.5）触发HA构型变化，融合肽暴露，膜融合" },
+      { "layer": 5, "step": "vRNP复合物经微管运输至核周" },
+      { "layer": 6, "step": "vRNP经核孔复合体（importin-α/β途径）入核" },
+      { "layer": 7, "step": "病毒RNA聚合酶（PB1/PB2/PA）在细胞核内复制基因组" }
+    ],
+    "resource_theft": [],
+    "special_skills": [
+      { "id": "ns1_rigi_suppression", "name_key": "NS1抑制RIG-I", "trigger": "on_virus_turn",
+        "condition": { "type": "viral_load_gte", "value": 5 },
+        "effect": { "type": "pathway_suppress", "pathway": "RIG_I", "duration": 1 },
+        "biological_basis": "NS1蛋白通过TRIM25/Riplet结合阻断RIG-I泛素化激活（PMID: 19615920）" },
+      { "id": "pb1f2_mavs_damage", "name_key": "PB1-F2损伤MAVS", "trigger": "on_virus_turn",
+        "condition": { "type": "viral_load_gte", "value": 10 },
+        "effect": { "type": "defense_structure_damage", "target": "MAVS_platform", "amount": 1 },
+        "biological_basis": "PB1-F2插入线粒体外膜，诱导MAVS聚合体解聚（PMID: 21734066）" }
+    ],
+    "weaknesses": [
+      { "card": "lysosome_fusion",    "multiplier": 2.0, "reason": "内体融合阶段直接降解" },
+      { "card": "nuclear_pore_block", "multiplier": 1.8, "reason": "vRNP完全依赖核孔入核" },
+      { "card": "ifitm_fortify",      "multiplier": 1.6, "reason": "IFITM3阻断膜融合步骤" }
+    ],
+    "immune_evasion": ["NS1抑制RIG-I/MDA5", "PB2 627K突变", "PA-X降解宿主mRNA"],
+    "lore": { "zh": "甲型流感病毒H1N1，8节段负义ssRNA基因组。NS1蛋白是对抗宿主固有免疫的关键武器。" }
+  },
+
+  "sars_cov_2": {
+    "id": "sars_cov_2", "display_key": "viruses.sars_cov_2",
+    "category": "RNA_virus", "genome_type": "ssRNA_positive",
+    "replication_per_turn": 1, "initial_load": 2,
+    "ncbi": {
+      "reference_genome": "NC_045512",
+      "key_proteins": {
+        "S_protein": { "gene": "S", "protein": "spike glycoprotein", "function": "ACE2结合/膜融合" },
+        "NSP1":      { "gene": "nsp1", "protein": "nonstructural protein 1", "function": "宿主翻译抑制" },
+        "ORF3a":     { "gene": "ORF3a", "protein": "ORF3a viroporin", "function": "自噬阻断" },
+        "N_protein": { "gene": "N", "protein": "nucleocapsid phosphoprotein", "function": "RIG-I干扰" }
+      }
+    },
+    "invasion_pathway": [
+      { "layer": 1, "step": "S蛋白RBD结合ACE2受体（Kd ~15 nM）" },
+      { "layer": 1, "step": "TMPRSS2切割S蛋白激活融合" },
+      { "layer": 3, "step": "+ssRNA基因组直接在细胞质翻译，产生复制酶" },
+      { "layer": 4, "step": "在双层膜囊泡（DMV）中形成复制转录复合体" }
+    ],
+    "resource_theft": [
+      { "id": "nsp1_translation_block", "resource": "amino_acid", "delta_per_turn": -1,
+        "trigger": "on_virus_enter",
+        "biological_basis": "NSP1插入40S核糖体mRNA通道，抑制宿主翻译（PMID: 33400068）" }
+    ],
+    "special_skills": [
+      { "id": "orf3a_autophagy_block", "name_key": "ORF3a阻断自噬", "trigger": "passive",
+        "effect": { "type": "card_efficiency_reduce", "card_tag": "autophagy", "multiplier": 0.5 },
+        "biological_basis": "ORF3a通过HMGB1/Beclin1轴阻断自噬成熟（PMID: 34033782）" },
+      { "id": "n_protein_rigi_interference", "name_key": "N蛋白干扰RIG-I", "trigger": "on_virus_turn",
+        "condition": { "type": "viral_load_gte", "value": 8 },
+        "effect": { "type": "pathway_efficiency_reduce", "pathway": "RIG_I", "multiplier": 0.6, "duration": 1 },
+        "biological_basis": "N蛋白相分离隔离RNA激活子（PMID: 34413261）" }
+    ],
+    "weaknesses": [
+      { "card": "close_ace2",   "multiplier": 2.5, "reason": "切断唯一高亲和力受体" },
+      { "card": "cgas_sensing", "multiplier": 1.7, "reason": "dsRNA中间体强烈激活cGAS-STING" }
+    ],
+    "immune_evasion": ["NSP1抑制mRNA核输出", "PLpro去泛素化", "ORF9b抑制MAVS/STING/TRIF"],
+    "lore": { "zh": "SARS-CoV-2，~29.9 kb正义ssRNA。NSP1劫持宿主核糖体是消耗战核心机制。" }
+  },
+
+  "adenovirus_5": {
+    "id": "adenovirus_5", "display_key": "viruses.adenovirus_5",
+    "category": "DNA_virus", "genome_type": "dsDNA",
+    "replication_per_turn": 1.5, "initial_load": 2,
+    "ncbi": {
+      "reference_genome": "AC_000008",
+      "key_proteins": {
+        "fiber":  { "gene": "fiber",  "protein": "fiber protein",        "function": "CAR受体结合" },
+        "E1A":    { "gene": "E1A",    "protein": "early region 1A",      "function": "ATP节律干扰" },
+        "VA_RNA": { "gene": "VA",     "protein": "virus-associated RNA",  "function": "PKR拮抗" }
+      }
+    },
+    "invasion_pathway": [
+      { "layer": 1, "step": "纤维蛋白Knob域结合CAR受体" },
+      { "layer": 2, "step": "Penton Base穿孔破坏内体膜逃逸" },
+      { "layer": 5, "step": "裸衣壳结合动力蛋白沿微管运输（强依赖）" },
+      { "layer": 6, "step": "衣壳在核孔处解体，dsDNA注射入核" }
+    ],
+    "resource_theft": [
+      { "id": "e1a_atp_rhythm_disruption", "resource": "atp", "delta_per_turn": -1,
+        "trigger_condition": { "type": "even_turn" },
+        "biological_basis": "E1A破坏线粒体氧化磷酸化转录节律（PMID: 12070130）" }
+    ],
+    "special_skills": [
+      { "id": "va_rna_pkr_antagonism", "name_key": "VA RNA拮抗PKR", "trigger": "passive",
+        "effect": { "type": "card_nullify", "card_id": "pkr_activation" },
+        "biological_basis": "VA RNA I竞争性结合PKR dsRNA结合域（PMID: 1372386）" }
+    ],
+    "weaknesses": [
+      { "card": "dynein_competition", "multiplier": 2.2, "reason": "高度依赖微管运输" },
+      { "card": "lysosome_fusion",    "multiplier": 1.9, "reason": "内体逃逸前最脆弱" },
+      { "card": "cgas_sensing",       "multiplier": 1.8, "reason": "dsDNA强烈激活cGAS" }
+    ],
+    "immune_evasion": ["VA RNA拮抗PKR", "E3/19K滞留MHC-I", "E1B-55K降解p53"],
+    "lore": { "zh": "人腺病毒5型，~36 kb dsDNA，无包膜。VA RNA是经典PKR拮抗机制研究模型。" }
+  },
+
+  "hsv_1": {
+    "id": "hsv_1", "display_key": "viruses.hsv_1",
+    "category": "DNA_virus", "genome_type": "dsDNA",
+    "replication_per_turn": 1, "initial_load": 2,
+    "ncbi": {
+      "reference_genome": "NC_001806",
+      "key_proteins": {
+        "gD":   { "gene": "UL27", "protein": "glycoprotein D",          "function": "受体结合（nectin/HVEM）" },
+        "ICP0": { "gene": "RL2",  "protein": "infected-cell protein 0", "function": "PML核体降解" },
+        "Us3":  { "gene": "US3",  "protein": "Us3 kinase",              "function": "抗凋亡激酶" }
+      }
+    },
+    "invasion_pathway": [
+      { "layer": 1, "step": "gD结合nectin/HVEM受体，激活融合机器" },
+      { "layer": 1, "step": "gB/gH-gL直接催化膜融合（绕过内体！）" },
+      { "layer": 5, "step": "衣壳沿微管运输至核周（强依赖）" },
+      { "layer": 6, "step": "衣壳锚定核孔，~152 kb dsDNA注射入核" }
+    ],
+    "resource_theft": [
+      { "id": "dna_nucleotide_drain", "resource": "nucleotide", "delta_per_turn": -1,
+        "trigger": "on_virus_enter",
+        "biological_basis": "HSV-1 DNA聚合酶持续消耗dNTP池（PMID: 2840630）" }
+    ],
+    "special_skills": [
+      { "id": "icp0_pml_destruction", "name_key": "ICP0摧毁PML核体", "trigger": "on_first_turn",
+        "effect": { "type": "defense_structure_destroy", "target": "PML_nuclear_body" },
+        "biological_basis": "ICP0 RING指结构域E3泛素连接酶降解PML/Sp100（PMID: 11483763）" },
+      { "id": "us3_apoptosis_block", "name_key": "Us3阻断凋亡", "trigger": "passive",
+        "effect": { "type": "card_nullify", "card_id": "apoptosis_initiation" },
+        "biological_basis": "Us3磷酸化BAD/HDAC1广谱阻断凋亡（PMID: 15269331）" },
+      { "id": "latency_mechanism", "name_key": "潜伏机制", "trigger": "on_viral_load_cleared_attempt",
+        "condition": { "type": "viral_load_lte", "value": 2 },
+        "effect": { "type": "latency_enter", "reactivation_turns": 3, "reactivation_load": 4 },
+        "biological_basis": "LAT维持神经元潜伏（PMID: 12163575）" }
+    ],
+    "weaknesses": [
+      { "card": "cgas_sensing",       "multiplier": 2.2, "reason": "大dsDNA强烈激活cGAS-STING" },
+      { "card": "dynein_competition", "multiplier": 1.8, "reason": "依赖微管运输" },
+      { "card": "pml_repair",         "multiplier": 1.5, "reason": "PML重建后ICP0优势消失" }
+    ],
+    "immune_evasion": ["ICP0降解PML核体", "Us3广谱阻断凋亡", "LAT介导神经元潜伏"],
+    "lore": { "zh": "HSV-1，~152 kb dsDNA。直接膜融合绕过内体，ICP0与PML博弈是核心机制，潜伏机制赋予最高策略深度。" }
+  },
+
+  "hiv_1": {
+    "id": "hiv_1", "display_key": "viruses.hiv_1",
+    "category": "Retrovirus", "genome_type": "ssRNA_positive_RT",
+    "replication_per_turn": 0.5, "initial_load": 1,
+    "ncbi": {
+      "reference_genome": "NC_001802",
+      "key_proteins": {
+        "gp120": { "gene": "env", "protein": "gp120", "function": "CD4/CCR5/CXCR4结合" },
+        "RT":    { "gene": "pol", "protein": "reverse transcriptase", "function": "RNA→DNA逆转录" },
+        "IN":    { "gene": "pol", "protein": "integrase", "function": "DNA整合进宿主基因组" },
+        "Vif":   { "gene": "vif", "protein": "viral infectivity factor", "function": "APOBEC3G降解" },
+        "Nef":   { "gene": "nef", "protein": "negative regulatory factor", "function": "MHC-I/CD4下调" }
+      }
+    },
+    "invasion_pathway": [
+      { "layer": 1, "step": "gp120结合CD4受体" },
+      { "layer": 1, "step": "gp120结合CCR5/CXCR4共受体，gp41介导膜融合" },
+      { "layer": 3, "step": "RT复合体在胞质启动逆转录，RNA→dsDNA" },
+      { "layer": 7, "step": "整合酶催化dsDNA整合进宿主染色质，形成provirus（不可逆）" }
+    ],
+    "resource_theft": [
+      { "id": "rt_nucleotide_drain", "resource": "nucleotide", "delta_per_turn": -1,
+        "trigger": "on_provirus_established",
+        "biological_basis": "逆转录酶持续消耗dNTP（PMID: 21124804）" },
+      { "id": "nef_amino_acid_reduction", "resource": "amino_acid", "delta_per_turn": -1,
+        "trigger": "on_provirus_established",
+        "biological_basis": "Nef重编程蛋白质分选途径（PMID: 15710430）" }
+    ],
+    "special_skills": [
+      { "id": "vif_apobec3g_degradation", "name_key": "Vif降解APOBEC3G", "trigger": "on_virus_turn",
+        "condition": { "type": "card_in_hand", "card_id": "apobec3g_protection" },
+        "effect": { "type": "discard_card", "card_id": "apobec3g_protection" },
+        "biological_basis": "Vif募集CRL5 E3泛素连接酶降解APOBEC3G/F（PMID: 12949492）" },
+      { "id": "nef_mhc_downregulation", "name_key": "Nef下调MHC-I", "trigger": "passive",
+        "effect": { "type": "card_efficiency_reduce", "card_tag": "antigen_presentation", "multiplier": 0.3 },
+        "biological_basis": "Nef与AP-1重定向MHC-I至溶酶体（PMID: 10066584）" },
+      { "id": "genome_integration", "name_key": "基因组整合", "trigger": "on_virus_turn",
+        "condition": { "type": "turn_gte", "value": 4 },
+        "effect": { "type": "provirus_establish", "cell_integrity_damage": 5, "viral_load_floor": 1, "permanent": true },
+        "biological_basis": "整合酶链转移反应，provirus永久嵌入宿主基因组（PMID: 16530201）" }
+    ],
+    "weaknesses": [
+      { "card": "samhd1_activation",   "multiplier": 3.0, "reason": "逆转录前唯一完全清除窗口" },
+      { "card": "apobec3g_protection", "multiplier": 2.0, "reason": "预防Vif降解，超突变阻止整合" }
+    ],
+    "immune_evasion": ["Vif降解APOBEC3G/F/H", "Nef下调MHC-I", "provirus潜伏库终身逃避"],
+    "lore": { "zh": "HIV-1，~9.7 kb逆转录病毒，最终Boss。目标是建立不可逆整合状态，逆转录阶段是唯一清除窗口。" }
+  }
+}
