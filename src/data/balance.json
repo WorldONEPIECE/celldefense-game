@@ -1,21 +1,94 @@
 {
   "_comment": "全局平衡参数 — 所有数值在此定义，JS引擎禁止出现裸数字",
   "version": "1.0.0",
+
   "resources": {
-    "atp":            { "base": 3,   "max": 10,  "regen": 3,  "display_key": "ui.resources.atp",            "color": "#f0c040", "icon": "⚡" },
-    "amino_acid":     { "base": 2,   "max": 8,   "regen": 2,  "display_key": "ui.resources.amino_acid",     "color": "#60c080", "icon": "🔗" },
-    "nucleotide":     { "base": 1,   "max": 6,   "regen": 1,  "display_key": "ui.resources.nucleotide",     "color": "#80a0ff", "icon": "🧬" },
-    "cell_integrity": { "base": 100, "max": 100, "regen": 0,  "display_key": "ui.resources.cell_integrity", "color": "#e06060", "icon": "🛡" },
-    "oxidative_stress":{ "base": 0,  "max": 20,  "regen": 1,  "display_key": "ui.resources.oxidative_stress","color": "#ff8800", "icon": "🔥", "is_negative": true },
-    "viral_load":     { "base": 0,   "max": 50,  "regen": 0,  "display_key": "ui.resources.viral_load",     "color": "#cc44cc", "icon": "☣", "is_negative": true },
-    "fatigue":        { "base": 0,   "max": 30,  "regen": -1, "display_key": "ui.resources.fatigue",        "color": "#888888", "icon": "😓","is_negative": true }
+    "atp": {
+      "base": 3,
+      "max": 10,
+      "regen": 3,
+      "display_key": "ui.resources.atp",
+      "color": "#f0c040",
+      "icon": "⚡"
+    },
+    "amino_acid": {
+      "base": 2,
+      "max": 8,
+      "regen": 2,
+      "display_key": "ui.resources.amino_acid",
+      "color": "#60c080",
+      "icon": "🔗"
+    },
+    "nucleotide": {
+      "base": 1,
+      "max": 6,
+      "regen": 1,
+      "display_key": "ui.resources.nucleotide",
+      "color": "#80a0ff",
+      "icon": "🧬"
+    },
+    "cell_integrity": {
+      "base": 100,
+      "max": 100,
+      "regen": 0,
+      "display_key": "ui.resources.cell_integrity",
+      "color": "#e06060",
+      "icon": "🛡"
+    },
+    "oxidative_stress": {
+      "base": 0,
+      "max": 20,
+      "regen": 1,
+      "display_key": "ui.resources.oxidative_stress",
+      "color": "#ff8800",
+      "icon": "🔥",
+      "is_negative": true
+    },
+    "viral_load": {
+      "base": 0,
+      "max": 50,
+      "regen": 0,
+      "display_key": "ui.resources.viral_load",
+      "color": "#cc44cc",
+      "icon": "☣",
+      "is_negative": true
+    },
+    "fatigue": {
+      "base": 0,
+      "max": 30,
+      "regen": -1,
+      "display_key": "ui.resources.fatigue",
+      "color": "#888888",
+      "icon": "😓",
+      "is_negative": true
+    }
   },
+
   "global": {
-    "hand_size": 5, "draw_per_turn": 2, "overload_threshold": 20,
-    "fatigue_high_cost_threshold": 3, "fatigue_per_high_cost_card": 1,
-    "fatigue_penalty_tier1": 10, "fatigue_penalty_tier2": 20, "fatigue_resource_penalty_per_tier": 1,
-    "oxidative_stress_max_damage_threshold": 20, "oxidative_stress_overflow_damage": 10,
+    "hand_size": 5,
+    "draw_per_turn": 2,
+    "overload_threshold": 20,
+    "fatigue_high_cost_threshold": 3,
+    "fatigue_per_high_cost_card": 1,
+    "fatigue_penalty_tier1": 10,
+    "fatigue_penalty_tier2": 20,
+    "fatigue_resource_penalty_per_tier": 1,
+    "oxidative_stress_max_damage_threshold": 20,
+    "oxidative_stress_overflow_damage": 10,
     "viral_load_overload_threshold": 20,
-    "event_trigger_interval_min": 3, "event_trigger_interval_max": 5
+    "event_trigger_interval_min": 3,
+    "event_trigger_interval_max": 5,
+    "starter_deck": [
+      "activate_tlr4",
+      "activate_tlr4",
+      "isg_activation",
+      "isg_activation",
+      "jak_stat",
+      "cytokine_release",
+      "autophagy_activation",
+      "heat_shock_protein",
+      "chemokine_secretion",
+      "strengthen_membrane"
+    ]
   }
 }
