@@ -1,0 +1,61 @@
+{
+  "_comment": "随机事件数据库 v1.0 — Phase 1B 初始5个事件",
+  "_version": "1.0.0",
+
+  "E01": {
+    "id": "E01",
+    "name_key": "events.E01.name",
+    "description_key": "events.E01.description",
+    "min_turn": 3,
+    "weight": 20,
+    "effects": [
+      { "type": "resource_delta", "resource": "oxidative_stress", "amount": 5 }
+    ]
+  },
+
+  "E02": {
+    "id": "E02",
+    "name_key": "events.E02.name",
+    "description_key": "events.E02.description",
+    "min_turn": 2,
+    "weight": 25,
+    "effects": [
+      { "type": "viral_load_reduce", "amount": 2 }
+    ]
+  },
+
+  "E03": {
+    "id": "E03",
+    "name_key": "events.E03.name",
+    "description_key": "events.E03.description",
+    "min_turn": 4,
+    "weight": 20,
+    "effects": [
+      { "type": "resource_delta", "resource": "nucleotide", "amount": 2 },
+      { "type": "resource_delta", "resource": "fatigue",    "amount": 3 }
+    ]
+  },
+
+  "E04": {
+    "id": "E04",
+    "name_key": "events.E04.name",
+    "description_key": "events.E04.description",
+    "min_turn": 5,
+    "weight": 15,
+    "effects": [
+      { "type": "resource_delta", "resource": "viral_load", "amount": 3 }
+    ]
+  },
+
+  "E05": {
+    "id": "E05",
+    "name_key": "events.E05.name",
+    "description_key": "events.E05.description",
+    "min_turn": 2,
+    "weight": 20,
+    "effects": [
+      { "type": "viral_load_reduce", "amount": 1 },
+      { "type": "resource_delta",    "resource": "atp", "amount": -1 }
+    ]
+  }
+}

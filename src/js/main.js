@@ -1,18 +1,22 @@
 /**
  * main.js — 游戏主入口
  *
- * v1.3 T7：过载状态跟踪，VIRAL_LOAD_OVERLOAD 绑定，
- *          HSV 潜伏逻辑内聚至 VirusAI，VirusAI 接收 globalConfig
+ * v1.4 T10+T11：
+ *   - 病毒选择：读取 window._selectedVirus
+ *   - 接入 EventSystem（随机事件）
+ *   - RANDOM_EVENT_RESOLVED 监听
+ *   - runSettlement 接入 eventSystem.checkAndTrigger()
  */
 
 import EventBus, { EVENTS } from './engine/event-bus.js';
-import { ResourceSystem } from './engine/resource-system.js';
-import { EffectResolver } from './engine/effect-resolver.js';
-import i18n from './engine/i18n.js';
-import { ThreeScene } from './three-scene.js';
-import { UIRenderer } from './ui-renderer.js';
-import { CardSystem } from './card-system.js';
-import { VirusAI } from './virus-ai.js';
+import { ResourceSystem }  from './engine/resource-system.js';
+import { EffectResolver }  from './engine/effect-resolver.js';
+import i18n                from './engine/i18n.js';
+import { ThreeScene }      from './three-scene.js';
+import { UIRenderer }      from './ui-renderer.js';
+import { CardSystem }      from './card-system.js';
+import { VirusAI }         from './virus-ai.js';
+import { EventSystem }     from './event-system.js';
 
 const GameState = {
   phase: 'player_turn',
@@ -35,12 +39,12 @@ const GameState = {
   addActivePathway(pathway) {
     const ex = this.activePathways.find(p => p.pathway === pathway.pathway);
     if (ex) ex.remaining_turns = Math.max(ex.remaining_turns, pathway.remaining_turns);
-    else this.activePathways.push(pathway);
+    else    this.activePathways.push(pathway);
   },
   addSuppressedPathway(pathway) {
     const ex = this.suppressedPathways.find(p => p.pathway === pathway.pathway);
     if (ex) ex.remaining_turns = Math.max(ex.remaining_turns, pathway.remaining_turns);
-    else this.suppressedPathways.push(pathway);
+    else    this.suppressedPathways.push(pathway);
   },
   addNullifiedCard(id)  { this.nullifiedCards.add(id); },
   isCardNullified(id)   { return this.nullifiedCards.has(id); },
@@ -50,7 +54,6 @@ const GameState = {
     return active && !suppressed;
   },
   tickStatuses() {
-    // Infinity - 1 === Infinity，永久状态不被移除
     this.activeStatuses     = this.activeStatuses.filter(s => --s.remaining_turns > 0);
     this.activePathways     = this.activePathways.filter(p => --p.remaining_turns > 0);
     this.suppressedPathways = this.suppressedPathways.filter(p => --p.remaining_turns > 0);
@@ -58,16 +61,18 @@ const GameState = {
 };
 
 let resources = null, ui = null, threeScene = null;
-let cardSystem = null, virusAI = null, globalCfg = null;
+let cardSystem = null, virusAI = null, eventSystem = null;
+let globalCfg = null, effectResolver = null;
 
 async function boot() {
   console.log('[CellDefense] Booting...');
 
-  const [balanceCfg, hostProfiles, cardsData, virusesData] = await Promise.all([
+  const [balanceCfg, hostProfiles, cardsData, virusesData, eventsData] = await Promise.all([
     fetchJSON('./data/balance.json'),
     fetchJSON('./data/host-profiles.json'),
     fetchJSON('./data/cards.json'),
     fetchJSON('./data/viruses.json'),
+    fetchJSON('./data/events.json'),
   ]);
   globalCfg = balanceCfg.global;
 
@@ -76,15 +81,18 @@ async function boot() {
   resources = new ResourceSystem(balanceCfg, hostProfiles['default']);
   resources.init();
 
-  const effectResolver = new EffectResolver(resources, GameState);
+  effectResolver = new EffectResolver(resources, GameState);
 
   cardSystem = new CardSystem(cardsData, balanceCfg, resources, effectResolver, GameState, i18n);
   cardSystem.loadCards();
   cardSystem.buildStarterDeck();
 
+  const selectedVirusId = window._selectedVirus ?? 'influenza_h1n1';
   virusAI = new VirusAI(virusesData, globalCfg, resources, GameState);
-  virusAI.setVirus('influenza_h1n1');
-  GameState.currentVirus = virusesData['influenza_h1n1'];
+  virusAI.setVirus(selectedVirusId);
+  GameState.currentVirus = virusesData[selectedVirusId];
+
+  eventSystem = new EventSystem(eventsData, globalCfg, resources, effectResolver, GameState, i18n);
 
   bindCoreEvents();
 
@@ -98,7 +106,7 @@ async function boot() {
   virusAI.processVirusEntry();
   startPlayerTurn();
 
-  console.log('[CellDefense] Boot complete.');
+  console.log(`[CellDefense] Boot complete. Virus: ${selectedVirusId}`);
   EventBus.emit(EVENTS.GAME_START, { turn: 1 });
 }
 
@@ -117,10 +125,7 @@ function bindCoreEvents() {
   EventBus.on(EVENTS.RESOURCE_CHANGED, ({ id }) => {
     if (id === 'viral_load') {
       const now = resources.get('viral_load') >= globalCfg.viral_load_overload_threshold;
-      if (now !== GameState.isOverloaded) {
-        GameState.isOverloaded = now;
-        ui?.renderVirusPanel();
-      }
+      if (now !== GameState.isOverloaded) { GameState.isOverloaded = now; ui?.renderVirusPanel(); }
     }
     ui?.renderResourcePanel();
   });
@@ -128,7 +133,11 @@ function bindCoreEvents() {
     console.log(`[CellDefense] OVERLOAD! viral_load=${current}`);
     ui?.renderTurnInfo();
   });
-  EventBus.on(EVENTS.HAND_UPDATED,      () => ui?.renderHandArea());
+  EventBus.on(EVENTS.HAND_UPDATED, () => ui?.renderHandArea());
+  EventBus.on(EVENTS.RANDOM_EVENT_RESOLVED, () => {
+    ui?.renderAll();
+    setTimeout(() => startPlayerTurn(), 300);
+  });
   EventBus.on(EVENTS.ANIMATION_TRIGGER, ({ animation }) =>
     console.log(`[Animation] ${animation} (Phase 1C)`));
 }
@@ -151,7 +160,7 @@ function endPlayerTurn() {
 }
 
 function runVirusTurn() {
-  GameState.tickStatuses();  // 病毒回合开头tick：保证本回合加入的压制在下一玩家回合有效
+  GameState.tickStatuses();
   GameState.phase = 'virus_turn';
   EventBus.emit(EVENTS.VIRUS_TURN_START, { turn: GameState.turnCount });
   virusAI.processTurn();
@@ -169,7 +178,8 @@ function runSettlement() {
   }
   GameState.turnCount++;
   ui?.renderAll();
-  setTimeout(() => startPlayerTurn(), 300);
+  const triggered = eventSystem?.checkAndTrigger(GameState.turnCount) ?? false;
+  if (!triggered) setTimeout(() => startPlayerTurn(), 300);
 }
 
 window.CellDefense = {
