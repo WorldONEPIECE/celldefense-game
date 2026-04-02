@@ -68,6 +68,7 @@
     "hand_size": 5,
     "draw_per_turn": 2,
     "overload_threshold": 20,
+    "overload_replication_bonus": 1,
     "fatigue_high_cost_threshold": 3,
     "fatigue_per_high_cost_card": 1,
     "fatigue_penalty_tier1": 10,
