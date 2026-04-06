@@ -8,7 +8,8 @@
 **每次对话必须做的事：**
 - 先读本文件 + 进度记录.md，绝不问已有答案的问题
 - 所有代码用 Filesystem MCP 写到 `src/`，不要只贴对话框
-- 同一对话内所有文件写完后**一次性** push GitHub，commit 格式 `[T编号] 简述`
+- **⚠ Push 时机：本地测试第一版无 bug 后才 push，不要在写完代码时自动 push**
+- commit 格式 `[T编号] 简述`
 - 对话结束前更新进度记录.md（本文件只在架构变化时才改）
 - **每次改代码先做跨文件自检**：构造函数参数、事件名、GameState字段、emit/listen 对称性
 
@@ -26,7 +27,7 @@
 
 技术栈：**HTML5 + Three.js r158 + 原生 ES6 JS**，零构建工具，浏览器直开。
 
-**当前可玩状态：** 打开 index.html → 选病毒 → 打牌 → 随机事件会弹出 → 胜负判定正常。是完整可玩原型，缺关卡链和美化。
+**当前可玩状态（T12后）：** 打开 index.html → 选病毒（=选关卡起点）→ 打牌 → 胜利弹奖励卡选择 → 自动进入下一关，直到 HIV 最终关结束。完整 5 关链路可运行，缺分支地图和美化。
 
 ---
 
@@ -42,31 +43,31 @@
 
 ---
 
-## 当前文件结构（全部已推 GitHub）
+## 当前文件结构
 
 ```
 src/
-├─ index.html               ← 主界面 + 病毒选择 UI（CSS全在里面）
+├─ index.html               ← 主界面 + 病毒选择UI + 奖励层CSS（全在里面）
 ├─ data/
 │   ├─ balance.json         ← 7种资源定义 + 全局参数 + starter_deck（10张）
 │   ├─ host-profiles.json   ← 宿主档案（default + Phase2预留）
 │   ├─ cards.json           ← 40张卡完整数据（36张Phase1可用，4张Phase2）
 │   ├─ viruses.json         ← 5种病毒完整数据（含NCBI登录号和行为树）
 │   ├─ events.json          ← 5个随机事件（E01-E05，加权随机）
-│   ├─ levels.json          ← ❌ 待实现 (T12)
+│   ├─ levels.json          ← ✅ 5关配置（T12完成）
 │   └─ i18n/
-│       ├─ zh-CN.json       ← 完整中文包（卡/病毒/事件/UI全覆盖）
+│       ├─ zh-CN.json       ← 完整中文包（卡/病毒/事件/UI/levels全覆盖）
 │       └─ en-US.json       ← 空存根（Phase 2 填）
 └─ js/
-    ├─ main.js              ← 启动流程 + 回合骨架 + 全局事件绑定
-    ├─ ui-renderer.js       ← DOM 渲染（资源面板/手牌/病毒面板/游戏结束）
-    ├─ three-scene.js       ← 静态 Three.js 细胞背景（Phase 1C 才做动画）
+    ├─ main.js              ← 启动+回合骨架+关卡流程（v1.5，T12）
+    ├─ ui-renderer.js       ← DOM 渲染
+    ├─ three-scene.js       ← 静态 Three.js 细胞背景
     ├─ card-system.js       ← 抽/打/弃/洗牌逻辑
     ├─ virus-ai.js          ← 病毒行为引擎（完全 JSON 驱动）
     ├─ event-system.js      ← 随机事件系统
     └─ engine/
         ├─ event-bus.js         ← 全局事件总线（29个标准事件常量）
-        ├─ resource-system.js   ← 注册表式资源（从 balance.json 读，不含裸数字）
+        ├─ resource-system.js   ← 注册表式资源
         ├─ i18n.js              ← 多语言引擎
         └─ effect-resolver.js   ← 卡牌效果解析器（支持效率系数）
 ```
@@ -93,12 +94,12 @@ GameState = {
   hand, deck, discard,
   activeStatuses,      // [{type, remaining_turns, source_id?, ...}]
   activePathways,      // [{pathway, remaining_turns}]
-  suppressedPathways,  // 病毒压制的通路，isPathwayActive() 会排除
-  nullifiedCards,      // Set<string>，被病毒废除效果的卡ID
+  suppressedPathways,
+  nullifiedCards,      // Set<string>
   currentVirus,        // viruses.json 中的完整对象
   isGameOver, isVictory,
-  isOverloaded,        // viral_load >= overload_threshold，由 RESOURCE_CHANGED 事件维护
-  viralLoadFloor,      // HIV整合/HSV潜伏时 >0，阻止 viral_load 归零触发胜利
+  isOverloaded,        // viral_load >= overload_threshold
+  viralLoadFloor,      // HIV/HSV 阻止 viral_load 归零触发胜利
 }
 ```
 
@@ -116,8 +117,8 @@ startPlayerTurn → [资源再生, 抽牌, 渲染]
 endPlayerTurn → cardSystem.discardHand() → runVirusTurn
 runVirusTurn → GameState.tickStatuses() → virusAI.processTurn() → runSettlement
 runSettlement → [结算持续状态] → eventSystem.checkAndTrigger()
-  ↳ 若触发事件 → 等待 RANDOM_EVENT_RESOLVED → startPlayerTurn
-  ↳ 若不触发   → setTimeout(startPlayerTurn, 300)
+  ↳ 触发事件 → 等待 RANDOM_EVENT_RESOLVED → startPlayerTurn
+  ↳ 不触发   → setTimeout(startPlayerTurn, 300)
 ```
 
 **胜负：**
@@ -125,49 +126,67 @@ runSettlement → [结算持续状态] → eventSystem.checkAndTrigger()
 cell_integrity → 0  : ResourceSystem emit GAME_OVER
 viral_load → 0      : RESOURCE_DEPLETED → 检查 viralLoadFloor
   ↳ floor > 0 (HIV/HSV) : resources.set('viral_load', floor)，阻止胜利
-  ↳ floor === 0          : emit GAME_VICTORY
+  ↳ floor === 0          : emit GAME_VICTORY → handleVictory()
 ```
 
-**tickStatuses 时序（不得改变）：** 在 `runVirusTurn()` 开头调用。病毒本回合加的压制（remaining+1补偿）在下一个玩家回合有效。
+**GAME_VICTORY 路径（T12新增）：**
+```
+handleVictory()
+  ↳ reward_count > 0 → showRewardOverlay(choices) → 玩家选 1 张 → selectRewardCard()
+      ↳ next_level 存在 → startNextLevel(levelId)
+      ↳ next_level null → ui.showGameOver(true)  ← 真正最终胜利
+  ↳ reward_count = 0 + next_level 存在 → startNextLevel(levelId)
+  ↳ reward_count = 0 + next_level null → ui.showGameOver(true)
+```
 
-**VIRAL_LOAD_OVERLOAD 归属：** 只由 VirusAI.processTurn() 在过载状态**转变时**发出。resource-system.js 不发这个事件。
+**tickStatuses 时序（不得改变）：** 在 `runVirusTurn()` 开头调用。
+
+**VIRAL_LOAD_OVERLOAD 归属：** 只由 VirusAI.processTurn() 在过载状态转变时发出，resource-system.js 不发。
 
 ### VirusAI 触发器类型
 | 触发器 | 何时处理 |
-|--------|----------|
+|--------|---------|
 | `passive` | processVirusEntry()，永久生效 |
 | `on_first_turn` | processVirusEntry()，触发一次 |
 | `on_virus_turn` | processTurn() 每病毒回合检查 |
 | `on_viral_load_cleared_attempt` | processTurn() 末尾（HSV潜伏用） |
 
 ### EffectResolver 效率系数
-打出卡牌时，resolve() 先计算 `_getCardEfficiencyMultiplier(card)`：
-遍历 activeStatuses 中 type=`card_efficiency_reduce` 的条目，按 `target_tag` 或 `target_card` 匹配叠乘。正值效果乘系数，负值（代价）不受影响。
+打出卡牌时 resolve() 计算 `_getCardEfficiencyMultiplier(card)`：遍历 activeStatuses 中 type=`card_efficiency_reduce` 条目，按 target_tag / target_card 匹配叠乘。正值效果乘系数，负值（代价）不受影响。
 
-### 病毒选择流
-`index.html selectVirus(id)` → `window._selectedVirus = id` → `startGame()` → `import main.js` → `boot()` 读 `window._selectedVirus ?? 'influenza_h1n1'`
+### 病毒选择 / 关卡启动流（T12后）
+```
+index.html selectVirus(id) → window._selectedVirus = id → startGame() → import main.js
+→ boot() 读 window._selectedVirus → 找对应 level（levels.json 中 virus_id 匹配）
+→ currentLevel = 该关卡 → resources.set('viral_load', level.initial_viral_load)
+→ virusAI.processVirusEntry() → startPlayerTurn()
+```
 
----
+### startNextLevel() 关键步骤顺序（不得乱序）
+```js
+// 1. 手动清空上一关病毒挂的所有状态（setVirus() 不清这些）
+GameState.activeStatuses = [];
+GameState.activePathways = [];
+GameState.suppressedPathways = [];
+GameState.nullifiedCards.clear();
+// 2. 重置游戏标志
+GameState.isGameOver = false; GameState.isVictory = false;
+GameState.isOverloaded = false; GameState.viralLoadFloor = 0;
+GameState.phase = 'player_turn'; GameState.turnCount = 1;
+// 3. 资源归 base（viral_load 胜利时已是0，reset不触发事件）
+resources.reset();
+resources.set('viral_load', level.initial_viral_load);
+// 4. 合并牌组（保留积累，不重建 starter deck）
+GameState.deck = cardSystem.shuffle([...GameState.deck, ...GameState.discard]);
+GameState.discard = []; GameState.hand = [];
+// 5. 切换病毒（同时清 viralLoadFloor/isOverloaded/nullifiedCards）
+virusAI.setVirus(level.virus_id);
+GameState.currentVirus = virusesData[level.virus_id];
+// 6. 触发病毒进入效果
+virusAI.processVirusEntry();
+```
 
-## 游戏核心数值（来自 balance.json，供参考）
-
-| 参数 | 值 |
-|------|----|
-| 每回合抽牌 | 2 |
-| 起始牌组 | 10张（balance.json global.starter_deck） |
-| 过载阈值 | 20（viral_load >= 20 触发过载） |
-| 过载增殖加成 | +1/回合 |
-| 疲劳高消耗阈值 | ATP花费 >= 3 时 fatigue+1 |
-| 氧化应激溢出伤害 | cell_integrity -10 |
-| 随机事件间隔 | 3-5 回合（加权随机选取） |
-
----
-
-## 下一步任务：T12 关卡配置
-
-### 需要新建的文件
-`src/data/levels.json`：
-
+### levels.json 结构
 ```json
 {
   "level_1": {
@@ -178,44 +197,44 @@ viral_load → 0      : RESOURCE_DEPLETED → 检查 viralLoadFloor
     "reward_pool": ["cgas_sensing", "lysosome_fusion", "jak_stat", "release_ifnb", "nk_recruit"],
     "reward_count": 3,
     "next_level": "level_2"
-  },
-  "level_2": { "virus_id": "adenovirus_5", "next_level": "level_3", ... },
-  "level_3": { "virus_id": "sars_cov_2", "next_level": "level_4", ... },
-  "level_4": { "virus_id": "hsv_1", "next_level": "level_5", ... },
-  "level_5": { "virus_id": "hiv_1", "next_level": null, ... }
+  }
+  // level_2: adenovirus_5, vl=4 | level_3: sars_cov_2, vl=5
+  // level_4: hsv_1, vl=6     | level_5: hiv_1, vl=5, reward_count=0, next_level=null
 }
 ```
 
-### 需要修改的文件
+---
 
-**main.js：**
-1. boot() 并行加载 levels.json，存储 `let virusesData` 供关卡切换用
-2. 新增 `let currentLevelId = 'level_1'`
-3. GAME_VICTORY 事件处理器改为调用 `handleVictory()` 而非直接 showGameOver
-4. 实现 `handleVictory()`：
-   - 从 levelsData[currentLevelId].reward_pool 随机抽 reward_count 张（不重复，只取 cardPool 里有的）
-   - 显示奖励选择 UI → 玩家选1张 → 加入 gameState.deck
-   - 若 next_level 存在 → startNextLevel(next_level)
-   - 若 next_level 为 null → ui.showGameOver(true)（真正的最终胜利）
-5. 实现 `startNextLevel(levelId)`：
-   - **清空病毒挂的持续状态**：`GameState.activeStatuses = GameState.activeStatuses.filter(s => s.remaining_turns !== Infinity)`
-   - `resources.reset()`
-   - 保留已积累牌组：`GameState.deck = cardSystem.shuffle([...GameState.deck, ...GameState.discard]); GameState.discard = []; GameState.hand = []`
-   - `virusAI.setVirus(level.virus_id)` （内部会清 nullifiedCards/viralLoadFloor）
-   - `GameState.currentVirus = virusesData[level.virus_id]`
-   - `virusAI.processVirusEntry()` （设初始载量）
-   - `GameState.turnCount = 1; currentLevelId = levelId`
-   - `startPlayerTurn()`
+## 游戏核心数值（来自 balance.json）
 
-**index.html：** 新增 `#reward-overlay`（样式参考 event-overlay，按钮3个）
-
-**zh-CN.json：** 新增 `"levels": { "level_1": { "name": "第一关：流感入侵" }, ... }`
-
-### T12 注意事项
-- 奖励卡从 `cardSystem._cardPool`（Map 对象）里随机取，已过滤 pool_excluded_phase1:true 的卡
-- 同一张卡允许多次出现在牌组里（Roguelike 标准）
-- startNextLevel 必须先清 Infinity 持续状态，否则上一关病毒效果会延续
-- resources.reset() 会把 viral_load 重置为 base=0，不需要额外处理
+| 参数 | 值 |
+|------|-----|
+| 每回合抽牌 | 2 |
+| 起始牌组 | 10张（balance.json global.starter_deck） |
+| 过载阈值 | 20（viral_load >= 20 触发过载） |
+| 过载增殖加成 | +1/回合 |
+| 疲劳高消耗阈值 | ATP花费 >= 3 时 fatigue+1 |
+| 氧化应激溢出伤害 | cell_integrity -10 |
+| 随机事件间隔 | 3-5 回合 |
 
 ---
-*v3.2 — 最后更新：Phase 1B T9/T10/T11 完成后*
+
+## 下一步任务：T13 Roguelike 分支地图
+
+**目标：** 在 levels.json 基础上，给玩家展示一个可视化的关卡路线图（类 Slay the Spire 的节点地图），每局随机生成分支路径，玩家选择下一个节点。
+
+**待规划的核心决策（开工前先在本文件更新规格）：**
+1. 地图生成算法：固定 5 层 vs 随机分支（几列？几层？）
+2. 节点类型：战斗节点 / 事件节点 / 商店节点（Phase 1B 范围内只做战斗节点）
+3. 地图 UI：是否用 SVG / Canvas / 纯 DOM？
+4. 与 levels.json 的关系：每节点对应一个 virus_id，还是节点类型决定用哪个病毒？
+5. 地图状态持久化：在 GameState 中新增 mapState 字段？
+
+**暂定最小实现（供下一个 Claude 参考）：**
+- 纯 DOM 地图覆盖层（参考 #reward-overlay 样式）
+- 固定 5 层，每层 2 个可选节点，随机分配病毒（除 HIV 固定在第 5 层）
+- 玩家选节点 → `startNextLevel(levelId)` → 和现有流程无缝衔接
+- levels.json 需扩展：加 `branch_weight` 控制各病毒出现概率
+
+---
+*v4.0 — 最后更新：T12 完成（本地ready，待测试后push）*
