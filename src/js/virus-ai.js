@@ -8,36 +8,25 @@
  *             resource_drain永久状态用Infinity修复、
  *             setVirus清空nullifiedCards；
  *             新增过载状态跟踪，潜伏/再激活逻辑内聚至本模块。
- *
- * 触发器类型说明：
- *   on_first_turn              — 病毒入侵时立即触发一次
- *   passive                    — 病毒入侵时永久生效（和 on_first_turn 同时处理）
- *   on_virus_turn              — 每个病毒回合开始检查
- *   on_viral_load_cleared_attempt — 病毒回合检查：载量 ≤ 清零阈值时触发（HSV潜伏）
+ *   v1.2 T12 BUG FIX — processVirusEntry() 不再覆盖 viral_load，
+ *             由 boot()/startNextLevel() 按 levels.json 配置统一设定。
  */
 
 import EventBus, { EVENTS } from './engine/event-bus.js';
 
 export class VirusAI {
-  /**
-   * @param {Object}         virusesData   — viruses.json 完整内容
-   * @param {Object}         globalConfig  — balance.json global 部分
-   * @param {ResourceSystem} resources
-   * @param {Object}         gameState
-   */
   constructor(virusesData, globalConfig, resources, gameState) {
     this._allViruses  = virusesData;
     this._globalCfg   = globalConfig;
     this._resources   = resources;
     this._gameState   = gameState;
 
-    this._virus            = null;
-    this._virusTurnCount   = 0;
-    this._isOverloaded     = false;
+    this._virus               = null;
+    this._virusTurnCount      = 0;
+    this._isOverloaded        = false;
     this._provirusEstablished = false;
-
-    this._inLatency              = false;
-    this._latencyCountdown       = 0;
+    this._inLatency           = false;
+    this._latencyCountdown    = 0;
     this._latencyReactivationLoad = 0;
   }
 
@@ -63,7 +52,9 @@ export class VirusAI {
   processVirusEntry() {
     if (!this._virus) return;
 
-    this._resources.set('viral_load', this._virus.initial_load ?? 0);
+    // BUG FIX v1.2：不在此处设置 viral_load
+    // boot() 和 startNextLevel() 已按 levels.json 的 initial_viral_load 设好
+    // 在此重覆会导致关卡差异化配置完全失效
 
     for (const theft of this._virus.resource_theft ?? []) {
       if (theft.trigger === 'on_virus_enter') {
@@ -86,7 +77,6 @@ export class VirusAI {
   processTurn() {
     if (!this._virus) return;
 
-    // 潜伏期处理
     if (this._inLatency) {
       this._latencyCountdown--;
       console.log(`[VirusAI] Latency countdown: ${this._latencyCountdown}`);
@@ -94,9 +84,7 @@ export class VirusAI {
         this._inLatency = false;
         this._gameState.viralLoadFloor = 0;
         this._resources.set('viral_load', this._latencyReactivationLoad);
-        EventBus.emit(EVENTS.VIRUS_MUTATED, {
-          virus: this._virus.id, mutation: 'reactivation', load: this._latencyReactivationLoad,
-        });
+        EventBus.emit(EVENTS.VIRUS_MUTATED, { virus: this._virus.id, mutation: 'reactivation', load: this._latencyReactivationLoad });
         console.log('[VirusAI] HSV reactivated!');
       }
       return;
@@ -104,38 +92,33 @@ export class VirusAI {
 
     this._virusTurnCount++;
 
-    // 过载状态更新
     const currentLoad   = this._resources.get('viral_load');
     const threshold     = this._globalCfg.viral_load_overload_threshold;
     const wasOverloaded = this._isOverloaded;
     this._isOverloaded  = currentLoad >= threshold;
     this._gameState.isOverloaded = this._isOverloaded;
+
     if (this._isOverloaded && !wasOverloaded) {
       EventBus.emit(EVENTS.VIRAL_LOAD_OVERLOAD, { current: currentLoad });
     }
 
-    // 增殖（含过载加成）
     let rep = this._virus.replication_per_turn ?? 0;
     if (this._isOverloaded) rep += this._globalCfg.overload_replication_bonus ?? 0;
     this._resources.delta('viral_load', rep);
     EventBus.emit(EVENTS.VIRUS_REPLICATE, { virus: this._virus.id, amount: rep });
 
-    // 非持续性资源掠夺
     for (const theft of this._virus.resource_theft ?? []) {
-      if (theft.trigger === 'on_virus_enter' ||
-          theft.trigger === 'on_provirus_established') continue;
+      if (theft.trigger === 'on_virus_enter' || theft.trigger === 'on_provirus_established') continue;
       if (theft.trigger_condition && !this._evaluateCondition(theft.trigger_condition)) continue;
       this._resources.delta(theft.resource, theft.delta_per_turn);
     }
 
-    // on_virus_turn 特殊技能
     for (const skill of this._virus.special_skills ?? []) {
       if (skill.trigger !== 'on_virus_turn') continue;
       if (skill.condition && !this._evaluateCondition(skill.condition)) continue;
       this._executeSkillEffect(skill);
     }
 
-    // on_viral_load_cleared_attempt（HSV潜伏触发）
     for (const skill of this._virus.special_skills ?? []) {
       if (skill.trigger !== 'on_viral_load_cleared_attempt') continue;
       if (skill.condition && !this._evaluateCondition(skill.condition)) continue;
@@ -163,58 +146,44 @@ export class VirusAI {
     console.log(`[VirusAI] Skill: ${skill.id} → ${effect.type}`);
 
     switch (effect.type) {
-
       case 'pathway_suppress':
-        this._gameState.addSuppressedPathway({
-          pathway:         effect.pathway,
-          remaining_turns: (effect.duration ?? 1) + 1,
-        });
+        this._gameState.addSuppressedPathway({ pathway: effect.pathway, remaining_turns: (effect.duration ?? 1) + 1 });
         break;
-
       case 'defense_structure_damage': {
-        const pw = this._gameState.activePathways.find(p => p.pathway === effect.target);
-        if (pw) pw.remaining_turns = Math.max(0, pw.remaining_turns - (effect.amount ?? 1));
+        const pathway = this._gameState.activePathways.find(p => p.pathway === effect.target);
+        if (pathway) pathway.remaining_turns = Math.max(0, pathway.remaining_turns - (effect.amount ?? 1));
         EventBus.emit(EVENTS.DEFENSE_LAYER_BREACHED, { target: effect.target, amount: effect.amount });
         break;
       }
-
       case 'defense_structure_destroy': {
         const idx = this._gameState.activePathways.findIndex(p => p.pathway === effect.target);
         if (idx !== -1) this._gameState.activePathways.splice(idx, 1);
         EventBus.emit(EVENTS.DEFENSE_LAYER_BREACHED, { target: effect.target, destroyed: true });
         break;
       }
-
       case 'card_nullify':
         this._gameState.addNullifiedCard(effect.card_id);
         break;
-
       case 'card_efficiency_reduce':
         this._gameState.addStatus({
-          type:            'card_efficiency_reduce',
-          target_tag:      effect.card_tag  ?? null,
-          target_card:     effect.card_id   ?? null,
-          multiplier:      effect.multiplier ?? 1,
+          type: 'card_efficiency_reduce',
+          target_tag:  effect.card_tag  ?? null,
+          target_card: effect.card_id   ?? null,
+          multiplier:  effect.multiplier ?? 1,
           remaining_turns: Infinity,
-          source_id:       skill.id,
+          source_id: skill.id,
         });
         break;
-
       case 'discard_card': {
         const idx = this._gameState.hand.findIndex(c => c.id === effect.card_id);
         if (idx !== -1) {
           const [card] = this._gameState.hand.splice(idx, 1);
           this._gameState.discard.push(card);
           EventBus.emit(EVENTS.CARD_DISCARDED, { cardId: card.id, forced: true });
-          EventBus.emit(EVENTS.HAND_UPDATED, {
-            hand: this._gameState.hand,
-            deckSize: this._gameState.deck.length,
-            discardSize: this._gameState.discard.length,
-          });
+          EventBus.emit(EVENTS.HAND_UPDATED, { hand: this._gameState.hand, deckSize: this._gameState.deck.length, discardSize: this._gameState.discard.length });
         }
         break;
       }
-
       case 'provirus_establish':
         if (!this._provirusEstablished) {
           this._provirusEstablished = true;
@@ -226,7 +195,6 @@ export class VirusAI {
           EventBus.emit(EVENTS.VIRUS_MUTATED, { virus: this._virus.id, mutation: 'provirus' });
         }
         break;
-
       case 'latency_enter':
         if (!this._inLatency) {
           this._inLatency               = true;
@@ -237,14 +205,11 @@ export class VirusAI {
           console.log(`[VirusAI] HSV entered latency. Reactivates in ${this._latencyCountdown} turns.`);
         }
         break;
-
       default:
         console.warn(`[VirusAI] Unhandled effect type: "${effect.type}"`);
     }
 
-    EventBus.emit(EVENTS.VIRUS_SKILL_TRIGGERED, {
-      virus: this._virus.id, skill: skill.id, effect: effect.type,
-    });
+    EventBus.emit(EVENTS.VIRUS_SKILL_TRIGGERED, { virus: this._virus.id, skill: skill.id, effect: effect.type });
   }
 
   _addPermanentDrain(theft) {
