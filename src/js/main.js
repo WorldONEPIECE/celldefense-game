@@ -1,17 +1,16 @@
 /**
- * main.js — 游戏主入口
+ * main.js — 游戏主入口 v1.6 (T13+T14)
  *
- * v1.5 T12：
- *   - 并行加载 levels.json；virusesData 提升到模块级
- *   - 新增 currentLevel 跟踪当前关卡
- *   - GAME_VICTORY → handleVictory()（奖励卡选择 + 多关卡流程）
- *   - 新增 handleVictory() / showRewardOverlay() / selectRewardCard() / startNextLevel()
- *   - 顶栏关卡指示器 #level-indicator
+ * T13：集成 MapSystem（Roguelike 分支地图）
+ *   - boot() 末尾 mapSystem.generateMap()
+ *   - selectRewardCard() 末尾改为 mapSystem.showMapOverlay()
+ *   - HIV 最终关（next_level=null）直接 showGameOver(true)
  *
- * BUG FIX（测试期修复）：
- *   - 静态加载方式：window._cellDefenseBoot 注入，boot() 末尾手动隐藏加载屏
- *   - processVirusEntry() 不再覆盖 viral_load（由 boot/startNextLevel 按关卡配置设定）
- *   - #level-indicator 移出 #turn-info，不被 renderTurnInfo() innerHTML 替换
+ * T12 Bug Fix（已合并）：
+ *   - 静态加载 main.js（type=module src），window._cellDefenseBoot 注入
+ *   - boot() 末尾手动隐藏加载屏
+ *   - processVirusEntry() 不覆盖 viral_load（由 boot/startNextLevel 按关卡配置设定）
+ *   - #level-indicator 移出 #turn-info，不被 renderTurnInfo() innerHTML 覆盖
  */
 
 import EventBus, { EVENTS } from './engine/event-bus.js';
@@ -23,6 +22,7 @@ import { UIRenderer }      from './ui-renderer.js';
 import { CardSystem }      from './card-system.js';
 import { VirusAI }         from './virus-ai.js';
 import { EventSystem }     from './event-system.js';
+import { MapSystem }       from './map-system.js';
 
 // ─── 游戏状态 ─────────────────────────────────────────────────────────────────
 
@@ -36,6 +36,7 @@ const GameState = {
   isGameOver: false, isVictory: false,
   isOverloaded: false,
   viralLoadFloor: 0,
+  mapState: null,   // 由 MapSystem.generateMap() 写入，startNextLevel() 不清空
 
   addStatus(status) {
     if (status.source_id) {
@@ -67,6 +68,7 @@ const GameState = {
   },
 
   tickStatuses() {
+    // Infinity - 1 === Infinity，永久状态不被倒数消耗
     this.activeStatuses     = this.activeStatuses.filter(s => --s.remaining_turns > 0);
     this.activePathways     = this.activePathways.filter(p => --p.remaining_turns > 0);
     this.suppressedPathways = this.suppressedPathways.filter(p => --p.remaining_turns > 0);
@@ -81,6 +83,7 @@ let threeScene     = null;
 let cardSystem     = null;
 let virusAI        = null;
 let eventSystem    = null;
+let mapSystem      = null;
 let globalCfg      = null;
 let effectResolver = null;
 let virusesData    = null;
@@ -116,8 +119,7 @@ async function boot() {
   cardSystem.buildStarterDeck();
 
   const selectedVirusId = window._selectedVirus ?? 'influenza_h1n1';
-
-  currentLevel = Object.values(levelsData).find(l => l.virus_id === selectedVirusId)
+  currentLevel = Object.values(levelsData).find(l => l && l.virus_id === selectedVirusId)
               ?? levelsData['level_1'];
 
   virusAI = new VirusAI(virusesData, globalCfg, resources, GameState);
@@ -125,6 +127,10 @@ async function boot() {
   GameState.currentVirus = virusesData[selectedVirusId];
 
   eventSystem = new EventSystem(eventsData, globalCfg, resources, effectResolver, GameState, i18n);
+
+  // T13：地图系统，回调直接触发 startNextLevel
+  mapSystem = new MapSystem(levelsData, virusesData, i18n, GameState, (levelId) => startNextLevel(levelId));
+  mapSystem.generateMap();
 
   bindCoreEvents();
 
@@ -136,7 +142,6 @@ async function boot() {
   threeScene.startLoop();
 
   resources.set('viral_load', currentLevel.initial_viral_load);
-
   virusAI.processVirusEntry();
   _updateLevelIndicator();
   startPlayerTurn();
@@ -144,7 +149,7 @@ async function boot() {
   console.log(`[CellDefense] Boot complete. Level: ${currentLevel.id} | Virus: ${selectedVirusId}`);
   EventBus.emit(EVENTS.GAME_START, { turn: 1 });
 
-  // BUG FIX：静态加载方式下必须在 boot 完成后手动隐藏加载屏
+  // 静态加载方式下 boot 结束才能隐藏加载屏
   const loadingScreen = document.getElementById('loading-screen');
   if (loadingScreen) loadingScreen.classList.add('hidden');
 }
@@ -175,9 +180,9 @@ function bindCoreEvents() {
 
   EventBus.on(EVENTS.RESOURCE_CHANGED, ({ id }) => {
     if (id === 'viral_load') {
-      const nowOverloaded = resources.get('viral_load') >= globalCfg.viral_load_overload_threshold;
-      if (nowOverloaded !== GameState.isOverloaded) {
-        GameState.isOverloaded = nowOverloaded;
+      const nowOver = resources.get('viral_load') >= globalCfg.viral_load_overload_threshold;
+      if (nowOver !== GameState.isOverloaded) {
+        GameState.isOverloaded = nowOver;
         ui?.renderVirusPanel();
       }
     }
@@ -221,7 +226,7 @@ function endPlayerTurn() {
 }
 
 function runVirusTurn() {
-  GameState.tickStatuses();
+  GameState.tickStatuses();  // 病毒回合开头 tick，保证本回合加的状态下一玩家回合有效
   GameState.phase = 'virus_turn';
   EventBus.emit(EVENTS.VIRUS_TURN_START, { turn: GameState.turnCount });
   virusAI.processTurn();
@@ -243,90 +248,89 @@ function runSettlement() {
   ui?.renderAll();
 
   const eventTriggered = eventSystem?.checkAndTrigger(GameState.turnCount) ?? false;
-  if (!eventTriggered) {
-    setTimeout(() => startPlayerTurn(), 300);
-  }
+  if (!eventTriggered) setTimeout(() => startPlayerTurn(), 300);
 }
 
-// ─── T12：胜利分流 ───────────────────────────────────────────────────────────
+// ─── 胜利分流 ─────────────────────────────────────────────────────────────────
 
 function handleVictory() {
   if (!currentLevel) { ui?.showGameOver(true); return; }
 
+  // HIV 最终关（next_level=null）：最终胜利，不弹地图
+  if (currentLevel.next_level === null) { ui?.showGameOver(true); return; }
+
   if (currentLevel.reward_count > 0 && currentLevel.reward_pool.length > 0) {
     const candidates = currentLevel.reward_pool
-      .map(id => cardSystem._cardPool.get(id))
-      .filter(Boolean);
+      .map(id => cardSystem._cardPool.get(id)).filter(Boolean);
     const choices = cardSystem.shuffle(candidates).slice(0, currentLevel.reward_count);
-    if (choices.length > 0) {
-      showRewardOverlay(choices, currentLevel.next_level);
-      return;
-    }
+    if (choices.length > 0) { showRewardOverlay(choices); return; }
   }
 
-  if (currentLevel.next_level) {
-    startNextLevel(currentLevel.next_level);
-  } else {
-    ui?.showGameOver(true);
-  }
+  mapSystem?.showMapOverlay();
 }
 
-function showRewardOverlay(choices, nextLevelId) {
+function showRewardOverlay(choices) {
   const overlay    = document.getElementById('reward-overlay');
   const container  = document.getElementById('reward-cards');
   const subtitleEl = document.getElementById('reward-level-name');
-  if (!overlay || !container) { selectRewardCard(null, nextLevelId); return; }
+  if (!overlay || !container) { mapSystem?.showMapOverlay(); return; }
 
   subtitleEl.textContent = `${i18n.get(currentLevel.name_key) || currentLevel.id} — 已清除`;
   container.innerHTML = '';
 
+  const rarityMap = { common: '普通', uncommon: '非凡', rare: '稀有', legendary: '传说' };
+
   for (const card of choices) {
-    const name  = i18n.get(`cards.${card.id}.name`)        || card.id;
-    const desc  = i18n.get(`cards.${card.id}.description`) || '';
-    const rarityLabelMap = { common: '普通', uncommon: '非凡', rare: '稀有', legendary: '传说' };
     const costStr = card.cost
       ? Object.entries(card.cost).map(([r, v]) => `${i18n.get(`ui.resources.${r}`) || r} ${v}`).join('  ')
       : '免费';
     const el = document.createElement('div');
     el.className = 'reward-card';
     el.innerHTML = `
-      <div class="reward-card-name">${name}</div>
-      <div class="reward-card-rarity rarity-${card.rarity || 'common'}">${rarityLabelMap[card.rarity] || ''}</div>
+      <div class="reward-card-name">${i18n.get(`cards.${card.id}.name`) || card.id}</div>
+      <div class="reward-card-rarity rarity-${card.rarity || 'common'}">${rarityMap[card.rarity] || ''}</div>
       <div class="reward-card-cost">消耗：${costStr}</div>
-      <div class="reward-card-desc">${desc}</div>`;
-    el.addEventListener('click', () => selectRewardCard(card, nextLevelId));
+      <div class="reward-card-desc">${i18n.get(`cards.${card.id}.description`) || ''}</div>`;
+    el.addEventListener('click', () => selectRewardCard(card));
     container.appendChild(el);
   }
   overlay.style.display = 'flex';
 }
 
-function selectRewardCard(card, nextLevelId) {
+function selectRewardCard(card) {
   document.getElementById('reward-overlay').style.display = 'none';
   if (card) {
     cardSystem._cardPool.set(card.id, card);
     GameState.deck.push({ ...card });
     console.log(`[T12] Reward: ${card.id} → deck ${GameState.deck.length}`);
   }
-  if (nextLevelId) { startNextLevel(nextLevelId); } else { ui?.showGameOver(true); }
+  mapSystem?.showMapOverlay();
 }
 
+// ─── 关卡切换 ─────────────────────────────────────────────────────────────────
+
+/**
+ * 切换到指定关卡（由 MapSystem 回调触发）
+ * mapState 不在此清零。
+ */
 function startNextLevel(levelId) {
   const level = levelsData?.[levelId];
-  if (!level) { console.error(`[T12] Level not found: "${levelId}"`); ui?.showGameOver(true); return; }
+  if (!level) { console.error(`[T13] Level not found: "${levelId}"`); ui?.showGameOver(true); return; }
 
   currentLevel = level;
-  console.log(`[CellDefense] → Level ${levelId} | Virus: ${level.virus_id}`);
+  console.log(`[CellDefense] → ${levelId} | Virus: ${level.virus_id}`);
 
+  // 清空上一关病毒状态（mapState 保留）
   GameState.activeStatuses     = [];
   GameState.activePathways     = [];
   GameState.suppressedPathways = [];
   GameState.nullifiedCards.clear();
-  GameState.isGameOver  = false;
-  GameState.isVictory   = false;
-  GameState.isOverloaded = false;
+  GameState.isGameOver     = false;
+  GameState.isVictory      = false;
+  GameState.isOverloaded   = false;
   GameState.viralLoadFloor = 0;
-  GameState.phase       = 'player_turn';
-  GameState.turnCount   = 1;
+  GameState.phase          = 'player_turn';
+  GameState.turnCount      = 1;
 
   resources.reset();
   resources.set('viral_load', level.initial_viral_load);
@@ -358,12 +362,14 @@ window.CellDefense = {
   getResources:    ()   => resources,
   getCardStats:    ()   => cardSystem?.getStats(),
   getCurrentLevel: ()   => currentLevel,
+  getMap:          ()   => GameState.mapState,
   debug: {
-    setDebug:      (v)     => EventBus.setDebug(v),
-    listEvents:    ()      => EventBus.listEvents(),
-    deltaResource: (id, n) => resources.delta(id, n),
-    setVirus:      (id)    => { virusAI.setVirus(id); virusAI.processVirusEntry(); },
+    setDebug:      (v)       => EventBus.setDebug(v),
+    listEvents:    ()        => EventBus.listEvents(),
+    deltaResource: (id, n)   => resources.delta(id, n),
+    setVirus:      (id)      => { virusAI.setVirus(id); virusAI.processVirusEntry(); },
     jumpToLevel:   (levelId) => { GameState.isVictory = false; GameState.isGameOver = false; startNextLevel(levelId); },
+    showMap:       ()        => mapSystem?.showMapOverlay(),
   },
 };
 
@@ -375,7 +381,6 @@ async function fetchJSON(url) {
   return res.json();
 }
 
-// 不在模块加载时立即 boot，等待病毒选择信号
 window._cellDefenseBoot = () => {
   boot().catch(err => {
     console.error('[CellDefense] Boot failed:', err);
