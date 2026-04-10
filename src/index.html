@@ -5,382 +5,179 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CellDefense — 细胞防御</title>
   <style>
-    /* ═══════════════════════════════════════════════════════
-       CSS 变量系统
-    ═══════════════════════════════════════════════════════ */
     :root {
-      --bg-deep:        #07080f;
-      --bg-panel:       #0e1020;
-      --bg-panel-light: #151830;
-      --bg-card:        #1a1f3a;
-      --bg-card-hover:  #222845;
-
-      --accent-blue:    #4488ff;
-      --accent-cyan:    #00ddcc;
-      --accent-purple:  #9944ff;
-      --accent-green:   #00cc88;
-      --accent-red:     #ff4455;
-      --accent-orange:  #ff8844;
-      --accent-yellow:  #f0c040;
-
-      --text-primary:   #dde4ff;
-      --text-secondary: #8890bb;
-      --text-dim:       #445577;
-
-      --border:         rgba(68, 136, 255, 0.15);
-      --border-bright:  rgba(68, 136, 255, 0.4);
-
-      --panel-radius: 10px;
-      --card-radius:   8px;
-
-      --left-panel-w:  220px;
-      --right-panel-w: 220px;
-      --top-bar-h:      56px;
-      --hand-area-h:   200px;
+      --bg-deep:#07080f;--bg-panel:#0e1020;--bg-panel-light:#151830;--bg-card:#1a1f3a;--bg-card-hover:#222845;
+      --accent-blue:#4488ff;--accent-cyan:#00ddcc;--accent-purple:#9944ff;--accent-green:#00cc88;
+      --accent-red:#ff4455;--accent-orange:#ff8844;--accent-yellow:#f0c040;
+      --text-primary:#dde4ff;--text-secondary:#8890bb;--text-dim:#445577;
+      --border:rgba(68,136,255,0.15);--border-bright:rgba(68,136,255,0.4);
+      --panel-radius:10px;--card-radius:8px;
+      --left-panel-w:220px;--right-panel-w:220px;--top-bar-h:56px;--hand-area-h:200px;
     }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html, body {
-      width: 100%; height: 100%;
-      overflow: hidden;
-      font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-      background: var(--bg-deep);
-      color: var(--text-primary);
-      font-size: 13px;
-    }
-
-    #three-canvas {
-      position: fixed; inset: 0;
-      width: 100%; height: 100%;
-      z-index: 0; opacity: 0.6;
-    }
-
-    #game-root {
-      position: relative; z-index: 1;
-      width: 100%; height: 100%;
-      display: grid;
-      grid-template-rows: var(--top-bar-h) 1fr var(--hand-area-h);
-      grid-template-columns: var(--left-panel-w) 1fr var(--right-panel-w);
-      grid-template-areas:
-        "topbar topbar  topbar"
-        "left   center  right"
-        "hand   hand    hand";
-    }
-
-    #top-bar {
-      grid-area: topbar;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0 20px;
-      background: rgba(14, 16, 32, 0.85);
-      border-bottom: 1px solid var(--border);
-      backdrop-filter: blur(8px);
-    }
-
-    #game-title {
-      font-size: 16px; font-weight: 700; letter-spacing: 0.12em;
-      color: var(--accent-cyan);
-      text-shadow: 0 0 12px rgba(0, 221, 204, 0.4);
-    }
-
-    #turn-info {
-      display: flex; flex-direction: column; align-items: center; gap: 3px;
-      flex: 1; padding: 0 20px;
-    }
-
-    .turn-count  { font-size: 14px; font-weight: 600; }
-    .turn-phase  { font-size: 11px; color: var(--accent-blue); letter-spacing: 0.08em; }
-
-    .status-badge {
-      display: inline-block;
-      font-size: 10px; font-weight: 700; padding: 2px 8px;
-      border-radius: 10px; letter-spacing: 0.05em;
-    }
-    .badge-overload {
-      background: rgba(255, 68, 85, 0.2);
-      border: 1px solid var(--accent-red);
-      color: var(--accent-red);
-      animation: pulse-red 1.2s ease-in-out infinite;
-    }
-    @keyframes pulse-red {
-      0%, 100% { opacity: 1; } 50% { opacity: 0.6; }
-    }
-
-    .deck-info { font-size: 11px; color: var(--text-secondary); }
-
-    #top-actions { display: flex; gap: 10px; align-items: center; }
-
-    #btn-end-turn {
-      padding: 8px 22px;
-      background: linear-gradient(135deg, #1a3a7a, #2255cc);
-      border: 1px solid var(--accent-blue); border-radius: 6px;
-      color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
-      letter-spacing: 0.05em; transition: all 0.15s ease;
-      box-shadow: 0 0 12px rgba(68, 136, 255, 0.25);
-    }
-    #btn-end-turn:hover:not(:disabled) {
-      background: linear-gradient(135deg, #2255aa, #3366ff);
-      box-shadow: 0 0 20px rgba(68, 136, 255, 0.5);
-      transform: translateY(-1px);
-    }
-    #btn-end-turn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-    #left-panel {
-      grid-area: left;
-      padding: 14px 12px;
-      background: rgba(10, 12, 26, 0.82);
-      border-right: 1px solid var(--border);
-      backdrop-filter: blur(6px);
-      overflow-y: auto;
-    }
-
-    .panel-title {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.18em;
-      color: var(--text-secondary); text-transform: uppercase;
-      margin-bottom: 12px; padding-bottom: 6px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    #resource-panel { display: flex; flex-direction: column; gap: 9px; }
-
-    .resource-row { display: flex; flex-direction: column; gap: 4px; }
-    .resource-label { display: flex; align-items: center; gap: 5px; }
-    .resource-icon  { font-size: 13px; line-height: 1; }
-    .resource-name  { font-size: 11px; color: var(--text-secondary); flex: 1; }
-    .resource-value { font-size: 12px; font-weight: 700; text-align: right; }
-    .resource-max   { font-size: 10px; color: var(--text-secondary); font-weight: 400; }
-    .resource-bar-wrap { height: 5px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
-    .resource-bar { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
-    .bar-positive { opacity: 0.85; }
-    .bar-negative { opacity: 0.75; }
-
-    #center-area {
-      grid-area: center;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: 20px; position: relative;
-    }
-
-    #defense-layers { display: flex; flex-direction: column; gap: 5px; width: 100%; max-width: 480px; }
-
-    .defense-layer {
-      display: flex; align-items: center; gap: 10px;
-      padding: 7px 14px;
-      background: rgba(14, 16, 32, 0.6);
-      border: 1px solid var(--border); border-radius: 6px;
-      transition: border-color 0.2s;
-    }
-    .defense-layer.active { border-color: var(--accent-blue); background: rgba(30, 50, 100, 0.4); }
-    .defense-layer.breached { border-color: var(--accent-red); background: rgba(80, 10, 20, 0.4); opacity: 0.7; }
-    .layer-num {
-      width: 22px; height: 22px; border-radius: 50%;
-      background: rgba(68, 136, 255, 0.15); border: 1px solid var(--accent-blue);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 10px; font-weight: 700; color: var(--accent-blue); flex-shrink: 0;
-    }
-    .layer-name   { font-size: 11px; color: var(--text-secondary); flex: 1; }
-    .layer-status { font-size: 10px; color: var(--text-dim); }
-
-    #right-panel {
-      grid-area: right;
-      padding: 14px 12px;
-      background: rgba(10, 12, 26, 0.82);
-      border-left: 1px solid var(--border);
-      backdrop-filter: blur(6px);
-      overflow-y: auto;
-      display: flex; flex-direction: column; gap: 14px;
-    }
-
-    #virus-panel { display: flex; flex-direction: column; gap: 8px; }
-    .virus-name     { font-size: 13px; font-weight: 700; color: var(--accent-purple); }
-    .virus-genome   { font-size: 10px; color: var(--text-dim); letter-spacing: 0.05em; }
-    .virus-placeholder { font-size: 11px; color: var(--text-secondary); font-style: italic; }
-    .virus-load-section { display: flex; flex-direction: column; gap: 4px; }
-    .virus-load-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); }
-    .load-value-overload { color: var(--accent-red); font-weight: 700; }
-    .virus-load-bar-bg { height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; position: relative; overflow: visible; }
-    .virus-load-bar { height: 100%; background: var(--accent-purple); border-radius: 3px; transition: width 0.3s ease; }
-    .virus-load-bar.bar-overloaded { background: var(--accent-red); }
-    .overload-threshold-line { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--accent-orange); border-radius: 1px; pointer-events: none; }
-    .overload-warning { font-size: 10px; font-weight: 700; color: var(--accent-red); padding: 4px 8px; background: rgba(255, 68, 85, 0.1); border: 1px solid rgba(255, 68, 85, 0.3); border-radius: 4px; }
-    .virus-rep { font-size: 10px; color: var(--text-secondary); }
-    #active-pathways { display: flex; flex-direction: column; gap: 5px; }
-    .pathway-tag { font-size: 10px; padding: 3px 8px; border-radius: 4px; background: rgba(0, 220, 136, 0.12); border: 1px solid rgba(0, 220, 136, 0.3); color: var(--accent-green); display: flex; justify-content: space-between; }
-
-    #hand-section {
-      grid-area: hand;
-      background: rgba(7, 8, 18, 0.88);
-      border-top: 1px solid var(--border);
-      backdrop-filter: blur(6px);
-      display: flex; flex-direction: column;
-    }
-    #hand-bar { height: 28px; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
-    .hand-label { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; color: var(--text-secondary); text-transform: uppercase; }
-    .hand-count { font-size: 10px; color: var(--accent-blue); }
-    #hand-area { flex: 1; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px 20px; overflow-x: auto; }
-
-    .card {
-      width: 110px; height: 155px; flex-shrink: 0;
-      background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: var(--card-radius); cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s;
-      display: flex; flex-direction: column; overflow: hidden; position: relative;
-    }
-    .card-playable { border-color: rgba(68, 136, 255, 0.4); }
-    .card-playable:hover { transform: translateY(-10px) scale(1.05); border-color: var(--accent-blue); box-shadow: 0 8px 30px rgba(68, 136, 255, 0.35); z-index: 10; }
-    .card-unplayable { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.4); }
-    .card-nullified { border-color: rgba(255, 68, 85, 0.5) !important; }
-    .card-art { height: 60%; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
-    .card-rarity { position: absolute; top: 5px; right: 5px; font-size: 9px; font-weight: 900; padding: 2px 5px; border-radius: 3px; letter-spacing: 0.05em; }
-    .rarity-common    { background: rgba(180,180,180,0.3); color: #ccc; }
-    .rarity-uncommon  { background: rgba(0,204,136,0.25); color: var(--accent-green); }
-    .rarity-rare      { background: rgba(68,136,255,0.25); color: var(--accent-blue); }
-    .rarity-legendary { background: rgba(255,136,68,0.3);  color: var(--accent-orange); }
-    .card-body { height: 40%; padding: 5px 7px; display: flex; flex-direction: column; gap: 2px; background: rgba(0,0,0,0.3); }
-    .card-name { font-size: 10px; font-weight: 700; line-height: 1.2; }
-    .card-cost { font-size: 9px; color: var(--accent-orange); }
-    .card-desc { font-size: 9px; color: var(--text-secondary); line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-    .card-nullified-note { font-size: 8px; color: var(--accent-red); font-weight: 700; margin-top: 2px; }
-    .hand-placeholder { font-size: 12px; color: var(--text-secondary); font-style: italic; opacity: 0.6; }
-
-    #virus-select-overlay {
-      position: fixed; inset: 0; z-index: 500;
-      background: rgba(4, 5, 14, 0.97);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 32px;
-      backdrop-filter: blur(12px);
-    }
-    .vs-title { font-size: 28px; font-weight: 900; letter-spacing: 0.15em; color: var(--accent-cyan); text-shadow: 0 0 24px rgba(0, 221, 204, 0.5); }
-    .vs-subtitle { font-size: 13px; color: var(--text-secondary); letter-spacing: 0.1em; margin-top: -20px; }
-    .vs-grid { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; max-width: 740px; }
-    .vs-card { width: 130px; padding: 16px 14px; background: rgba(14, 16, 32, 0.8); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; text-align: center; transition: all 0.18s ease; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-    .vs-card:hover { border-color: var(--accent-purple); background: rgba(50, 20, 80, 0.5); transform: translateY(-4px); box-shadow: 0 8px 30px rgba(153, 68, 255, 0.3); }
-    .vs-icon  { font-size: 28px; line-height: 1; }
-    .vs-name  { font-size: 11px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
-    .vs-type  { font-size: 9px; color: var(--text-secondary); letter-spacing: 0.06em; }
-    .vs-diff  { font-size: 9px; padding: 2px 8px; border-radius: 8px; font-weight: 700; }
-    .diff-easy   { background: rgba(0,204,136,0.15); color: var(--accent-green); border: 1px solid rgba(0,204,136,0.3); }
-    .diff-medium { background: rgba(255,136,68,0.15); color: var(--accent-orange); border: 1px solid rgba(255,136,68,0.3); }
-    .diff-hard   { background: rgba(255,68,85,0.15); color: var(--accent-red); border: 1px solid rgba(255,68,85,0.3); }
-    .diff-boss   { background: rgba(153,68,255,0.15); color: var(--accent-purple); border: 1px solid rgba(153,68,255,0.4); }
-
-    #event-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-    .event-box { background: var(--bg-panel-light); border: 1px solid var(--accent-orange); border-radius: 12px; padding: 28px 32px; max-width: 380px; text-align: center; box-shadow: 0 0 40px rgba(255, 136, 68, 0.3); }
-    .event-title { font-size: 16px; font-weight: 800; color: var(--accent-orange); margin-bottom: 12px; }
-    .event-desc  { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 20px; }
-    .event-dismiss { padding: 9px 28px; background: rgba(255,136,68,0.15); border: 1px solid var(--accent-orange); border-radius: 6px; color: var(--accent-orange); font-size: 13px; cursor: pointer; transition: all 0.15s; }
-    .event-dismiss:hover { background: rgba(255,136,68,0.3); }
-
-    #gameover-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 200; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
-    .gameover-box { text-align: center; padding: 48px 56px; border-radius: 16px; max-width: 440px; }
-    .gameover-box.victory { background: rgba(0,80,60,0.6); border: 1px solid var(--accent-green); box-shadow: 0 0 60px rgba(0,204,136,0.3); }
-    .gameover-box.defeat  { background: rgba(80,10,20,0.6); border: 1px solid var(--accent-red);   box-shadow: 0 0 60px rgba(255,68,85,0.3); }
-    .gameover-box h2 { font-size: 22px; font-weight: 800; margin-bottom: 16px; letter-spacing: 0.06em; }
-    .gameover-box p  { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; }
-    .victory h2 { color: var(--accent-green); }
-    .defeat  h2 { color: var(--accent-red); }
-    .gameover-box button { padding: 12px 36px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; background: rgba(255,255,255,0.12); color: var(--text-primary); transition: background 0.15s; }
-    .gameover-box button:hover { background: rgba(255,255,255,0.22); }
-
-    #loading-screen { position: fixed; inset: 0; background: var(--bg-deep); z-index: 999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; transition: opacity 0.5s ease; }
-    #loading-screen.hidden { opacity: 0; pointer-events: none; }
-    .loading-title { font-size: 28px; font-weight: 900; letter-spacing: 0.15em; color: var(--accent-cyan); text-shadow: 0 0 20px rgba(0,221,204,0.6); }
-    .loading-subtitle { font-size: 13px; color: var(--text-secondary); letter-spacing: 0.1em; }
-    .loading-bar-bg { width: 240px; height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
-    .loading-bar { height: 100%; background: var(--accent-cyan); border-radius: 2px; animation: loadingAnim 1.6s ease-in-out infinite; }
-    @keyframes loadingAnim { 0% { width: 0%; margin-left: 0; } 50% { width: 70%; margin-left: 0; } 100% { width: 0%; margin-left: 100%; } }
-
-    ::-webkit-scrollbar { width: 4px; height: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
-
-    #debug-badge { position: fixed; bottom: 8px; right: 8px; font-size: 9px; color: rgba(255,255,255,0.2); z-index: 50; pointer-events: none; }
-
-    /* T12：关卡指示器 */
-    #level-indicator { font-size: 10px; color: var(--accent-cyan); letter-spacing: 0.08em; opacity: 0.75; }
-
-    /* T12：奖励卡选择层 */
-    #reward-overlay { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.9); z-index: 250; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
-    .reward-box { text-align: center; padding: 40px 48px; background: rgba(0, 50, 35, 0.75); border: 1px solid var(--accent-green); border-radius: 16px; max-width: 680px; width: 90%; box-shadow: 0 0 60px rgba(0, 204, 136, 0.35); }
-    .reward-title { font-size: 18px; font-weight: 800; color: var(--accent-green); margin-bottom: 6px; letter-spacing: 0.06em; }
-    .reward-subtitle { font-size: 11px; color: var(--text-secondary); margin-bottom: 28px; letter-spacing: 0.08em; }
-    .reward-cards { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
-    .reward-card { width: 160px; padding: 18px 14px; background: var(--bg-card); border: 2px solid var(--border); border-radius: 10px; cursor: pointer; text-align: left; transition: all 0.2s ease; display: flex; flex-direction: column; gap: 8px; }
-    .reward-card:hover { border-color: var(--accent-green); transform: translateY(-8px); box-shadow: 0 10px 35px rgba(0, 204, 136, 0.35); background: var(--bg-card-hover); }
-    .reward-card-name { font-size: 12px; font-weight: 800; color: var(--text-primary); line-height: 1.3; }
-    .reward-card-rarity { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 3px; display: inline-block; align-self: flex-start; }
-    .reward-card-cost { font-size: 10px; color: var(--accent-orange); }
-    .reward-card-desc { font-size: 10px; color: var(--text-secondary); line-height: 1.5; flex: 1; }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg-deep);color:var(--text-primary);font-size:13px;}
+    #three-canvas{position:fixed;inset:0;width:100%;height:100%;z-index:0;opacity:0.6;}
+    #game-root{position:relative;z-index:1;width:100%;height:100%;display:grid;grid-template-rows:var(--top-bar-h) 1fr var(--hand-area-h);grid-template-columns:var(--left-panel-w) 1fr var(--right-panel-w);grid-template-areas:"topbar topbar topbar" "left center right" "hand hand hand";}
+    #top-bar{grid-area:topbar;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:rgba(14,16,32,0.85);border-bottom:1px solid var(--border);backdrop-filter:blur(8px);}
+    #game-title{font-size:16px;font-weight:700;letter-spacing:0.12em;color:var(--accent-cyan);text-shadow:0 0 12px rgba(0,221,204,0.4);}
+    #turn-info{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;padding:0 20px;}
+    .turn-count{font-size:14px;font-weight:600;} .turn-phase{font-size:11px;color:var(--accent-blue);letter-spacing:0.08em;}
+    .status-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:0.05em;}
+    .badge-overload{background:rgba(255,68,85,0.2);border:1px solid var(--accent-red);color:var(--accent-red);animation:pulse-red 1.2s ease-in-out infinite;}
+    @keyframes pulse-red{0%,100%{opacity:1;}50%{opacity:0.6;}}
+    .deck-info{font-size:11px;color:var(--text-secondary);}
+    #top-actions{display:flex;gap:10px;align-items:center;}
+    #btn-end-turn{padding:8px 22px;background:linear-gradient(135deg,#1a3a7a,#2255cc);border:1px solid var(--accent-blue);border-radius:6px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:0.05em;transition:all 0.15s ease;box-shadow:0 0 12px rgba(68,136,255,0.25);}
+    #btn-end-turn:hover:not(:disabled){background:linear-gradient(135deg,#2255aa,#3366ff);box-shadow:0 0 20px rgba(68,136,255,0.5);transform:translateY(-1px);}
+    #btn-end-turn:disabled{opacity:0.4;cursor:not-allowed;transform:none;}
+    #left-panel{grid-area:left;padding:14px 12px;background:rgba(10,12,26,0.82);border-right:1px solid var(--border);backdrop-filter:blur(6px);overflow-y:auto;}
+    .panel-title{font-size:10px;font-weight:700;letter-spacing:0.18em;color:var(--text-secondary);text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+    #resource-panel{display:flex;flex-direction:column;gap:9px;}
+    .resource-row{display:flex;flex-direction:column;gap:4px;}
+    .resource-label{display:flex;align-items:center;gap:5px;} .resource-icon{font-size:13px;line-height:1;} .resource-name{font-size:11px;color:var(--text-secondary);flex:1;} .resource-value{font-size:12px;font-weight:700;text-align:right;} .resource-max{font-size:10px;color:var(--text-secondary);font-weight:400;}
+    .resource-bar-wrap{height:5px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;}
+    .resource-bar{height:100%;border-radius:3px;transition:width 0.3s ease;} .bar-positive{opacity:0.85;} .bar-negative{opacity:0.75;}
+    #center-area{grid-area:center;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;position:relative;}
+    #defense-layers{display:flex;flex-direction:column;gap:5px;width:100%;max-width:480px;}
+    .defense-layer{display:flex;align-items:center;gap:10px;padding:7px 14px;background:rgba(14,16,32,0.6);border:1px solid var(--border);border-radius:6px;transition:border-color 0.2s;}
+    .defense-layer.active{border-color:var(--accent-blue);background:rgba(30,50,100,0.4);}
+    .defense-layer.breached{border-color:var(--accent-red);background:rgba(80,10,20,0.4);opacity:0.7;}
+    .layer-num{width:22px;height:22px;border-radius:50%;background:rgba(68,136,255,0.15);border:1px solid var(--accent-blue);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--accent-blue);flex-shrink:0;}
+    .layer-name{font-size:11px;color:var(--text-secondary);flex:1;} .layer-status{font-size:10px;color:var(--text-dim);}
+    #right-panel{grid-area:right;padding:14px 12px;background:rgba(10,12,26,0.82);border-left:1px solid var(--border);backdrop-filter:blur(6px);overflow-y:auto;display:flex;flex-direction:column;gap:14px;}
+    #virus-panel{display:flex;flex-direction:column;gap:8px;}
+    .virus-name{font-size:13px;font-weight:700;color:var(--accent-purple);} .virus-genome{font-size:10px;color:var(--text-dim);letter-spacing:0.05em;} .virus-placeholder{font-size:11px;color:var(--text-secondary);font-style:italic;}
+    .virus-load-section{display:flex;flex-direction:column;gap:4px;}
+    .virus-load-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);}
+    .load-value-overload{color:var(--accent-red);font-weight:700;}
+    .virus-load-bar-bg{height:6px;background:rgba(255,255,255,0.06);border-radius:3px;position:relative;overflow:visible;}
+    .virus-load-bar{height:100%;background:var(--accent-purple);border-radius:3px;transition:width 0.3s ease;}
+    .virus-load-bar.bar-overloaded{background:var(--accent-red);}
+    .overload-threshold-line{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--accent-orange);border-radius:1px;pointer-events:none;}
+    .overload-warning{font-size:10px;font-weight:700;color:var(--accent-red);padding:4px 8px;background:rgba(255,68,85,0.1);border:1px solid rgba(255,68,85,0.3);border-radius:4px;}
+    .virus-rep{font-size:10px;color:var(--text-secondary);}
+    #active-pathways{display:flex;flex-direction:column;gap:5px;}
+    .pathway-tag{font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(0,220,136,0.12);border:1px solid rgba(0,220,136,0.3);color:var(--accent-green);display:flex;justify-content:space-between;}
+    .pathway-suppressed{background:rgba(255,68,85,0.08);border-color:rgba(255,68,85,0.3);color:var(--accent-red);opacity:0.85;}
+    #hand-section{grid-area:hand;background:rgba(7,8,18,0.88);border-top:1px solid var(--border);backdrop-filter:blur(6px);display:flex;flex-direction:column;}
+    #hand-bar{height:28px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+    .hand-label{font-size:10px;font-weight:700;letter-spacing:0.15em;color:var(--text-secondary);text-transform:uppercase;} .hand-count{font-size:10px;color:var(--accent-blue);}
+    #hand-area{flex:1;display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 20px;overflow-x:auto;}
+    .card{width:110px;height:155px;flex-shrink:0;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--card-radius);cursor:pointer;transition:transform 0.15s ease,box-shadow 0.15s ease,border-color 0.15s;display:flex;flex-direction:column;overflow:hidden;position:relative;}
+    .card-playable{border-color:rgba(68,136,255,0.4);}
+    .card-playable:hover{transform:translateY(-10px) scale(1.05);border-color:var(--accent-blue);box-shadow:0 8px 30px rgba(68,136,255,0.35);z-index:10;}
+    .card-unplayable{opacity:0.45;cursor:not-allowed;filter:grayscale(0.4);}
+    .card-nullified{border-color:rgba(255,68,85,0.5)!important;}
+    .card-art{height:60%;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+    .card-rarity{position:absolute;top:5px;right:5px;font-size:9px;font-weight:900;padding:2px 5px;border-radius:3px;letter-spacing:0.05em;}
+    .rarity-common{background:rgba(180,180,180,0.3);color:#ccc;} .rarity-uncommon{background:rgba(0,204,136,0.25);color:var(--accent-green);} .rarity-rare{background:rgba(68,136,255,0.25);color:var(--accent-blue);} .rarity-legendary{background:rgba(255,136,68,0.3);color:var(--accent-orange);}
+    .card-body{height:40%;padding:5px 7px;display:flex;flex-direction:column;gap:2px;background:rgba(0,0,0,0.3);}
+    .card-name{font-size:10px;font-weight:700;line-height:1.2;} .card-cost{font-size:9px;color:var(--accent-orange);}
+    .card-desc{font-size:9px;color:var(--text-secondary);line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+    .card-nullified-note{font-size:8px;color:var(--accent-red);font-weight:700;margin-top:2px;}
+    .hand-placeholder{font-size:12px;color:var(--text-secondary);font-style:italic;opacity:0.6;}
+    #virus-select-overlay{position:fixed;inset:0;z-index:500;background:rgba(4,5,14,0.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px;backdrop-filter:blur(12px);}
+    .vs-title{font-size:28px;font-weight:900;letter-spacing:0.15em;color:var(--accent-cyan);text-shadow:0 0 24px rgba(0,221,204,0.5);}
+    .vs-subtitle{font-size:13px;color:var(--text-secondary);letter-spacing:0.1em;margin-top:-20px;}
+    .vs-grid{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;max-width:740px;}
+    .vs-card{width:130px;padding:16px 14px;background:rgba(14,16,32,0.8);border:1px solid var(--border);border-radius:10px;cursor:pointer;text-align:center;transition:all 0.18s ease;display:flex;flex-direction:column;align-items:center;gap:8px;}
+    .vs-card:hover{border-color:var(--accent-purple);background:rgba(50,20,80,0.5);transform:translateY(-4px);box-shadow:0 8px 30px rgba(153,68,255,0.3);}
+    .vs-icon{font-size:28px;line-height:1;} .vs-name{font-size:11px;font-weight:700;color:var(--text-primary);line-height:1.3;} .vs-type{font-size:9px;color:var(--text-secondary);letter-spacing:0.06em;}
+    .vs-diff{font-size:9px;padding:2px 8px;border-radius:8px;font-weight:700;}
+    .diff-easy{background:rgba(0,204,136,0.15);color:var(--accent-green);border:1px solid rgba(0,204,136,0.3);}
+    .diff-medium{background:rgba(255,136,68,0.15);color:var(--accent-orange);border:1px solid rgba(255,136,68,0.3);}
+    .diff-hard{background:rgba(255,68,85,0.15);color:var(--accent-red);border:1px solid rgba(255,68,85,0.3);}
+    .diff-boss{background:rgba(153,68,255,0.15);color:var(--accent-purple);border:1px solid rgba(153,68,255,0.4);}
+    #event-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+    .event-box{background:var(--bg-panel-light);border:1px solid var(--accent-orange);border-radius:12px;padding:28px 32px;max-width:380px;text-align:center;box-shadow:0 0 40px rgba(255,136,68,0.3);}
+    .event-title{font-size:16px;font-weight:800;color:var(--accent-orange);margin-bottom:12px;} .event-desc{font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;}
+    .event-dismiss{padding:9px 28px;background:rgba(255,136,68,0.15);border:1px solid var(--accent-orange);border-radius:6px;color:var(--accent-orange);font-size:13px;cursor:pointer;transition:all 0.15s;}
+    .event-dismiss:hover{background:rgba(255,136,68,0.3);}
+    #gameover-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(8px);}
+    .gameover-box{text-align:center;padding:48px 56px;border-radius:16px;max-width:440px;}
+    .gameover-box.victory{background:rgba(0,80,60,0.6);border:1px solid var(--accent-green);box-shadow:0 0 60px rgba(0,204,136,0.3);}
+    .gameover-box.defeat{background:rgba(80,10,20,0.6);border:1px solid var(--accent-red);box-shadow:0 0 60px rgba(255,68,85,0.3);}
+    .gameover-box h2{font-size:22px;font-weight:800;margin-bottom:16px;letter-spacing:0.06em;} .gameover-box p{font-size:13px;color:var(--text-secondary);margin-bottom:24px;}
+    .victory h2{color:var(--accent-green);} .defeat h2{color:var(--accent-red);}
+    .gameover-box button{padding:12px 36px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:none;background:rgba(255,255,255,0.12);color:var(--text-primary);transition:background 0.15s;}
+    .gameover-box button:hover{background:rgba(255,255,255,0.22);}
+    #loading-screen{position:fixed;inset:0;background:var(--bg-deep);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity 0.5s ease;}
+    #loading-screen.hidden{opacity:0;pointer-events:none;}
+    .loading-title{font-size:28px;font-weight:900;letter-spacing:0.15em;color:var(--accent-cyan);text-shadow:0 0 20px rgba(0,221,204,0.6);}
+    .loading-subtitle{font-size:13px;color:var(--text-secondary);letter-spacing:0.1em;}
+    .loading-bar-bg{width:240px;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;}
+    .loading-bar{height:100%;background:var(--accent-cyan);border-radius:2px;animation:loadingAnim 1.6s ease-in-out infinite;}
+    @keyframes loadingAnim{0%{width:0%;margin-left:0;}50%{width:70%;margin-left:0;}100%{width:0%;margin-left:100%;}}
+    ::-webkit-scrollbar{width:4px;height:4px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--border-bright);border-radius:2px;}
+    #debug-badge{position:fixed;bottom:8px;right:8px;font-size:9px;color:rgba(255,255,255,0.2);z-index:50;pointer-events:none;}
+    #level-indicator{font-size:10px;color:var(--accent-cyan);letter-spacing:0.08em;opacity:0.75;}
+    #reward-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:250;align-items:center;justify-content:center;backdrop-filter:blur(10px);}
+    .reward-box{text-align:center;padding:40px 48px;background:rgba(0,50,35,0.75);border:1px solid var(--accent-green);border-radius:16px;max-width:680px;width:90%;box-shadow:0 0 60px rgba(0,204,136,0.35);}
+    .reward-title{font-size:18px;font-weight:800;color:var(--accent-green);margin-bottom:6px;letter-spacing:0.06em;}
+    .reward-subtitle{font-size:11px;color:var(--text-secondary);margin-bottom:28px;letter-spacing:0.08em;}
+    .reward-cards{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;}
+    .reward-card{width:160px;padding:18px 14px;background:var(--bg-card);border:2px solid var(--border);border-radius:10px;cursor:pointer;text-align:left;transition:all 0.2s ease;display:flex;flex-direction:column;gap:8px;}
+    .reward-card:hover{border-color:var(--accent-green);transform:translateY(-8px);box-shadow:0 10px 35px rgba(0,204,136,0.35);background:var(--bg-card-hover);}
+    .reward-card-name{font-size:12px;font-weight:800;color:var(--text-primary);line-height:1.3;}
+    .reward-card-rarity{font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;display:inline-block;align-self:flex-start;}
+    .reward-card-cost{font-size:10px;color:var(--accent-orange);} .reward-card-desc{font-size:10px;color:var(--text-secondary);line-height:1.5;flex:1;}
+    #map-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:260;align-items:center;justify-content:center;backdrop-filter:blur(12px);}
+    .map-box{text-align:center;padding:36px 48px;background:rgba(5,10,30,0.88);border:1px solid var(--accent-blue);border-radius:18px;max-width:700px;width:95%;box-shadow:0 0 60px rgba(68,136,255,0.3);}
+    .map-title{font-size:20px;font-weight:800;color:var(--accent-cyan);margin-bottom:6px;letter-spacing:0.08em;}
+    .map-subtitle{font-size:11px;color:var(--text-secondary);margin-bottom:28px;letter-spacing:0.06em;}
+    #map-grid{display:flex;flex-direction:column;gap:14px;}
+    .map-layer{display:flex;align-items:center;gap:12px;}
+    .map-layer-label{font-size:10px;color:var(--text-dim);width:52px;text-align:right;flex-shrink:0;letter-spacing:0.05em;}
+    .map-nodes{display:flex;gap:12px;flex:1;justify-content:center;}
+    .map-node{width:120px;padding:12px 10px;border-radius:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:5px;border:2px solid transparent;transition:all 0.2s ease;position:relative;}
+    .map-node-easy{background:rgba(0,204,136,0.08);border-color:rgba(0,204,136,0.25);}
+    .map-node-medium{background:rgba(255,136,68,0.08);border-color:rgba(255,136,68,0.25);}
+    .map-node-hard{background:rgba(255,68,85,0.08);border-color:rgba(255,68,85,0.25);}
+    .map-node-boss{background:rgba(153,68,255,0.1);border-color:rgba(153,68,255,0.35);}
+    .map-node-selectable{cursor:pointer;box-shadow:0 0 14px rgba(68,136,255,0.2);}
+    .map-node-selectable:hover{transform:translateY(-5px) scale(1.06);border-color:var(--accent-blue)!important;box-shadow:0 8px 28px rgba(68,136,255,0.45);}
+    .map-node-completed{opacity:0.55;cursor:default;filter:grayscale(0.3);}
+    .map-node-completed::after{content:'✓';position:absolute;top:4px;right:6px;font-size:11px;color:var(--accent-green);font-weight:900;}
+    .map-node-locked{opacity:0.3;cursor:default;filter:grayscale(0.6);} .map-node-skipped{opacity:0.4;cursor:default;} .map-node-on-path{border-color:var(--accent-green)!important;opacity:0.8;}
+    .map-node-icon{font-size:24px;line-height:1;} .map-node-name{font-size:10px;font-weight:700;color:var(--text-primary);line-height:1.3;}
+    .map-node-diff{font-size:9px;padding:2px 6px;border-radius:6px;font-weight:700;}
+    .map-diff-easy{background:rgba(0,204,136,0.15);color:var(--accent-green);} .map-diff-medium{background:rgba(255,136,68,0.15);color:var(--accent-orange);} .map-diff-hard{background:rgba(255,68,85,0.15);color:var(--accent-red);} .map-diff-boss{background:rgba(153,68,255,0.15);color:var(--accent-purple);}
+    /* T17: 卡牌学术注释 Tooltip */
+    #card-tooltip{position:fixed;z-index:400;max-width:280px;pointer-events:none;opacity:0;transition:opacity 0.15s ease;}
+    #card-tooltip.visible{opacity:1;}
+    .tooltip-inner{background:rgba(8,10,24,0.97);border:1px solid var(--accent-blue);border-radius:10px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,0.6);}
+    .tooltip-card-name{font-size:12px;font-weight:800;color:var(--text-primary);margin-bottom:4px;}
+    .tooltip-category{font-size:9px;color:var(--accent-blue);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;}
+    .tooltip-note-label{font-size:9px;font-weight:700;color:var(--accent-cyan);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:5px;}
+    .tooltip-note-text{font-size:10px;color:var(--text-secondary);line-height:1.6;}
   </style>
 </head>
 <body>
-
-  <!-- 加载屏 -->
   <div id="loading-screen">
     <div class="loading-title">CELL DEFENSE</div>
     <div class="loading-subtitle">细胞防御 — 初始化免疫系统</div>
     <div class="loading-bar-bg"><div class="loading-bar"></div></div>
   </div>
-
-  <!-- 病毒选择界面 (T10) -->
   <div id="virus-select-overlay">
     <div class="vs-title">CELL DEFENSE</div>
     <div class="vs-subtitle">选择入侵病毒 — 每种病毒拥有独特的免疫逃逸机制</div>
     <div class="vs-grid">
-      <div class="vs-card" onclick="selectVirus('influenza_h1n1')">
-        <div class="vs-icon">🦠</div>
-        <div class="vs-name">流感病毒<br>H1N1</div>
-        <div class="vs-type">ssRNA− · 8节段</div>
-        <div class="vs-diff diff-easy">★ 入门</div>
-      </div>
-      <div class="vs-card" onclick="selectVirus('sars_cov_2')">
-        <div class="vs-icon">👑</div>
-        <div class="vs-name">SARS-CoV-2<br>新冠病毒</div>
-        <div class="vs-type">ssRNA+ · 冠状</div>
-        <div class="vs-diff diff-medium">★★ 中等</div>
-      </div>
-      <div class="vs-card" onclick="selectVirus('adenovirus_5')">
-        <div class="vs-icon">🔷</div>
-        <div class="vs-name">腺病毒 5<br>Adenovirus</div>
-        <div class="vs-type">dsDNA · 无包膜</div>
-        <div class="vs-diff diff-medium">★★ 中等</div>
-      </div>
-      <div class="vs-card" onclick="selectVirus('hsv_1')">
-        <div class="vs-icon">⚡</div>
-        <div class="vs-name">单纯疱疹<br>HSV-1</div>
-        <div class="vs-type">dsDNA · 潜伏性</div>
-        <div class="vs-diff diff-hard">★★★ 困难</div>
-      </div>
-      <div class="vs-card" onclick="selectVirus('hiv_1')">
-        <div class="vs-icon">💀</div>
-        <div class="vs-name">HIV-1<br>逆转录病毒</div>
-        <div class="vs-type">ssRNA-RT · 整合</div>
-        <div class="vs-diff diff-boss">☠ Boss</div>
-      </div>
+      <div class="vs-card" onclick="selectVirus('influenza_h1n1')"><div class="vs-icon">🦠</div><div class="vs-name">流感病毒<br>H1N1</div><div class="vs-type">ssRNA− · 8节段</div><div class="vs-diff diff-easy">★ 入门</div></div>
+      <div class="vs-card" onclick="selectVirus('sars_cov_2')"><div class="vs-icon">👑</div><div class="vs-name">SARS-CoV-2<br>新冠病毒</div><div class="vs-type">ssRNA+ · 冠状</div><div class="vs-diff diff-medium">★★ 中等</div></div>
+      <div class="vs-card" onclick="selectVirus('adenovirus_5')"><div class="vs-icon">🔷</div><div class="vs-name">腺病毒 5<br>Adenovirus</div><div class="vs-type">dsDNA · 无包膜</div><div class="vs-diff diff-medium">★★ 中等</div></div>
+      <div class="vs-card" onclick="selectVirus('hsv_1')"><div class="vs-icon">⚡</div><div class="vs-name">单纯疱疹<br>HSV-1</div><div class="vs-type">dsDNA · 潜伏性</div><div class="vs-diff diff-hard">★★★ 困难</div></div>
+      <div class="vs-card" onclick="selectVirus('hiv_1')"><div class="vs-icon">💀</div><div class="vs-name">HIV-1<br>逆转录病毒</div><div class="vs-type">ssRNA-RT · 整合</div><div class="vs-diff diff-boss">☠ Boss</div></div>
     </div>
   </div>
-
   <canvas id="three-canvas"></canvas>
-
   <div id="game-root">
     <header id="top-bar">
       <div id="game-title">CELL DEFENSE</div>
-      <div id="turn-info">
-        <span class="turn-count">第 1 回合</span>
-        <span class="turn-phase">加载中…</span>
-      </div>
-      <!-- BUG FIX：移到 #turn-info 外部，防止被 renderTurnInfo() 的 innerHTML 整体替换 -->
+      <div id="turn-info"><span class="turn-count">第 1 回合</span><span class="turn-phase">加载中…</span></div>
       <span id="level-indicator"></span>
-      <div id="top-actions">
-        <button id="btn-end-turn" disabled>结束回合</button>
-      </div>
+      <div id="top-actions"><button id="btn-end-turn" disabled>结束回合</button></div>
     </header>
-
-    <aside id="left-panel">
-      <div class="panel-title">细胞状态</div>
-      <div id="resource-panel"><div style="font-size:11px;color:var(--text-secondary);">加载中…</div></div>
-    </aside>
-
+    <aside id="left-panel"><div class="panel-title">细胞状态</div><div id="resource-panel"><div style="font-size:11px;color:var(--text-secondary);">加载中…</div></div></aside>
     <main id="center-area">
       <div id="defense-layers">
         <div class="defense-layer" data-layer="0"><div class="layer-num">0</div><div class="layer-name">胞外预警层</div><div class="layer-status">待机</div></div>
@@ -393,73 +190,38 @@
         <div class="defense-layer" data-layer="7"><div class="layer-num">7</div><div class="layer-name">细胞核防线</div><div class="layer-status">待机</div></div>
       </div>
     </main>
-
     <aside id="right-panel">
       <div class="panel-title">入侵者</div>
       <div id="virus-panel"><div class="virus-placeholder">等待病毒入侵…</div></div>
       <div class="panel-title" style="margin-top:8px;">活跃通路</div>
       <div id="active-pathways"><div style="font-size:11px;color:var(--text-secondary);font-style:italic;">无活跃通路</div></div>
     </aside>
-
     <section id="hand-section">
-      <div id="hand-bar">
-        <span class="hand-label">手牌</span>
-        <span class="hand-count" id="hand-count">0 / 0</span>
-      </div>
+      <div id="hand-bar"><span class="hand-label">手牌</span><span class="hand-count" id="hand-count">0 / 0</span></div>
       <div id="hand-area"></div>
     </section>
   </div>
-
-  <!-- T12：奖励卡选择层 -->
-  <div id="reward-overlay">
-    <div class="reward-box">
-      <div class="reward-title">🎉 关卡完成 — 选择一张强化卡</div>
-      <div class="reward-subtitle" id="reward-level-name"></div>
-      <div class="reward-cards" id="reward-cards"></div>
-    </div>
-  </div>
-
-  <!-- 随机事件弹窗 -->
-  <div id="event-overlay">
-    <div class="event-box">
-      <div class="event-title" id="event-title">随机事件</div>
-      <div class="event-desc"  id="event-desc">…</div>
-      <button class="event-dismiss" id="event-dismiss">确认</button>
-    </div>
-  </div>
-
-  <!-- 游戏结束覆盖层 -->
+  <div id="map-overlay"><div class="map-box"><div class="map-title">🗺 选择下一个目标</div><div class="map-subtitle">选择路线 — 每条路径通往不同的病毒威胁</div><div id="map-grid"></div></div></div>
+  <div id="reward-overlay"><div class="reward-box"><div class="reward-title">🎉 关卡完成 — 选择一张强化卡</div><div class="reward-subtitle" id="reward-level-name"></div><div class="reward-cards" id="reward-cards"></div></div></div>
+  <div id="event-overlay"><div class="event-box"><div class="event-title" id="event-title">随机事件</div><div class="event-desc" id="event-desc">…</div><button class="event-dismiss" id="event-dismiss">确认</button></div></div>
   <div id="gameover-overlay"></div>
-
-  <div id="debug-badge">Phase 1B · v0.3.1 · T12</div>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"></script>
-  <!-- 静态加载 main.js，避免 file:// 协议下动态 import 的 CORS 问题 -->
+  <!-- T17: 学术注释 Tooltip 容器 -->
+  <div id="card-tooltip"><div class="tooltip-inner"><div class="tooltip-card-name" id="tt-name"></div><div class="tooltip-category" id="tt-category"></div><div class="tooltip-note-label">📖 学术注释</div><div class="tooltip-note-text" id="tt-note"></div></div></div>
+  <div id="debug-badge">Phase 1C · v0.6.0 · T17</div>
+  <!-- Three.js 本地优先，Safari ITP 兜底 -->
+  <script src="./three.min.js"></script>
+  <script>if(!window.THREE){document.write('<scr\x69pt src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"><\/scr\x69pt>');}</script>
   <script type="module" src="./js/main.js"></script>
-
   <script>
-    window._selectedVirus = 'influenza_h1n1';
-
-    // 页面加载后 800ms 自动隐藏加载屏，露出病毒选择界面
-    window.addEventListener('DOMContentLoaded', () => {
-      setTimeout(() => {
-        const screen = document.getElementById('loading-screen');
-        if (screen) screen.classList.add('hidden');
-      }, 800);
-    });
-
-    function selectVirus(virusId) {
-      window._selectedVirus = virusId;
-      document.getElementById('virus-select-overlay').style.display = 'none';
-      const screen = document.getElementById('loading-screen');
-      if (screen) screen.classList.remove('hidden');
-      if (typeof window._cellDefenseBoot === 'function') {
-        window._cellDefenseBoot();
-      } else {
-        console.error('[CellDefense] _cellDefenseBoot not ready');
-      }
+    window._selectedVirus='influenza_h1n1';
+    window.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{const s=document.getElementById('loading-screen');if(s)s.classList.add('hidden');},800);});
+    function selectVirus(virusId){
+      window._selectedVirus=virusId;
+      document.getElementById('virus-select-overlay').style.display='none';
+      const screen=document.getElementById('loading-screen');if(screen)screen.classList.remove('hidden');
+      if(typeof window._cellDefenseBoot==='function')window._cellDefenseBoot();
+      else console.error('[CellDefense] _cellDefenseBoot not ready');
     }
   </script>
-
 </body>
 </html>

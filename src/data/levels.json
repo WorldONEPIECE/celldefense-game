@@ -1,8 +1,33 @@
 {
-  "_comment": "关卡配置 T12+T13。branch_weight 供地图随机权重使用",
-  "level_1": { "id": "level_1", "name_key": "levels.level_1.name", "virus_id": "influenza_h1n1", "initial_viral_load": 3, "branch_weight": 40, "reward_pool": ["cgas_sensing","lysosome_fusion","jak_stat","release_ifnb","nk_recruit"], "reward_count": 3, "next_level": "level_2" },
-  "level_2": { "id": "level_2", "name_key": "levels.level_2.name", "virus_id": "adenovirus_5",   "initial_viral_load": 4, "branch_weight": 25, "reward_pool": ["dynein_competition","nuclear_pore_block","proteasome_degradation","autophagy_activation","mavs_stabilize"], "reward_count": 3, "next_level": "level_3" },
-  "level_3": { "id": "level_3", "name_key": "levels.level_3.name", "virus_id": "sars_cov_2",     "initial_viral_load": 5, "branch_weight": 20, "reward_pool": ["close_ace2","upr_induction","autophagy_selective","stat1_nuclear","ifn_alpha"], "reward_count": 3, "next_level": "level_4" },
-  "level_4": { "id": "level_4", "name_key": "levels.level_4.name", "virus_id": "hsv_1",         "initial_viral_load": 6, "branch_weight": 15, "reward_pool": ["pml_repair","dna_repair","heat_shock_protein","trim21_activation","chemokine_secretion"], "reward_count": 3, "next_level": "level_5" },
-  "level_5": { "id": "level_5", "name_key": "levels.level_5.name", "virus_id": "hiv_1",         "initial_viral_load": 5, "branch_weight": 0,  "reward_pool": [], "reward_count": 0, "next_level": null }
+  "_comment": "关卡配置 — T12+T13+T16。branch_weight 控制T13地图随机分配权重",
+
+  "level_1": {
+    "id": "level_1", "name_key": "levels.level_1.name",
+    "virus_id": "influenza_h1n1", "initial_viral_load": 3, "branch_weight": 40,
+    "reward_pool": ["cgas_sensing","lysosome_fusion","jak_stat","release_ifnb","nk_recruit"],
+    "reward_count": 3, "next_level": "level_2"
+  },
+  "level_2": {
+    "id": "level_2", "name_key": "levels.level_2.name",
+    "virus_id": "adenovirus_5", "initial_viral_load": 4, "branch_weight": 25,
+    "reward_pool": ["dynein_competition","nuclear_pore_block","proteasome_degradation","autophagy_activation","mavs_stabilize","enhancement_proteome"],
+    "reward_count": 3, "next_level": "level_3"
+  },
+  "level_3": {
+    "id": "level_3", "name_key": "levels.level_3.name",
+    "virus_id": "sars_cov_2", "initial_viral_load": 5, "branch_weight": 20,
+    "reward_pool": ["close_ace2","upr_induction","autophagy_selective","stat1_nuclear","ifn_alpha","enhancement_stress_adapt"],
+    "reward_count": 3, "next_level": "level_4"
+  },
+  "level_4": {
+    "id": "level_4", "name_key": "levels.level_4.name",
+    "virus_id": "hsv_1", "initial_viral_load": 6, "branch_weight": 15,
+    "reward_pool": ["pml_repair","dna_repair","heat_shock_protein","trim21_activation","chemokine_secretion","enhancement_mitochondria","enhancement_epigenetic_memory"],
+    "reward_count": 3, "next_level": "level_5"
+  },
+  "level_5": {
+    "id": "level_5", "name_key": "levels.level_5.name",
+    "virus_id": "hiv_1", "initial_viral_load": 5, "branch_weight": 0,
+    "reward_pool": [], "reward_count": 0, "next_level": null
+  }
 }
